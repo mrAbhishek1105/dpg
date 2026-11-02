@@ -483,6 +483,9 @@ name = "dpg-protect"
 version = "0.0.1"
 dependencies = [
  "dpg-core",
+ "rand 0.8.8",
+ "regex",
+ "serde",
 ]
 
 [[package]]

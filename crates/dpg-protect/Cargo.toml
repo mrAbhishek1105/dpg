@@ -11,3 +11,6 @@ workspace = true
 
 [dependencies]
 dpg-core = { workspace = true }
+rand = { workspace = true }
+regex = { workspace = true }
+serde = { workspace = true }

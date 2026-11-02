@@ -10,6 +10,13 @@
 #![warn(missing_docs)]
 #![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::expect_used))]
 
+pub mod placeholder;
+
+pub use placeholder::{
+    generate, generate_body, generate_csprng, is_placeholder, PlaceholderCat, CROCKFORD_BASE32,
+    PATTERN,
+};
+
 /// Returns the version of the `dpg-protect` crate.
 pub fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")
