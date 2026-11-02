@@ -5,15 +5,23 @@ id = "dpg.pem-private-key"
 category = "PrivateKey"
 confidence = "High"
 keywords = ["-----BEGIN"]
-regex = '(?s)-----BEGIN[ A-Z0-9_-]*PRIVATE KEY-----.*?-----END[ A-Z0-9_-]*PRIVATE KEY-----'
+regex = '(?s)-----BEGIN (?:[A-Z0-9_-]+ )?PRIVATE KEY-----[\r\n].*?-----END (?:[A-Z0-9_-]+ )?PRIVATE KEY-----'
+secret_group = 0
+
+[[rules]]
+id = "dpg.openssh-private-key"
+category = "PrivateKey"
+confidence = "High"
+keywords = ["-----BEGIN OPENSSH PRIVATE KEY-----"]
+regex = '(?s)-----BEGIN OPENSSH PRIVATE KEY-----[\r\n].*?-----END OPENSSH PRIVATE KEY-----'
 secret_group = 0
 
 [[rules]]
 id = "dpg.aws-access-key-id"
 category = "KnownSecret"
 confidence = "High"
-keywords = ["AKIA", "ASIA"]
-regex = '\b((?:AKIA|ASIA)[0-9A-Z]{16})\b'
+keywords = ["AKIA", "ASIA", "AROA", "AIPA"]
+regex = '\b((?:AKIA|ASIA|AROA|AIPA)[0-9A-Z]{16})\b'
 secret_group = 1
 
 [[rules]]
@@ -28,8 +36,8 @@ secret_group = 1
 id = "dpg.github-pat"
 category = "KnownSecret"
 confidence = "High"
-keywords = ["ghp_", "gho_"]
-regex = '\b(gh[po]_[A-Za-z0-9_]{36,255})\b'
+keywords = ["ghp_", "gho_", "ghu_", "ghs_", "ghr_"]
+regex = '\b(gh[pousr]_[A-Za-z0-9_]{36,255})\b'
 secret_group = 1
 
 [[rules]]
@@ -52,16 +60,24 @@ secret_group = 1
 id = "dpg.stripe-api-key"
 category = "KnownSecret"
 confidence = "High"
-keywords = ["sk_test_", "sk_live_"]
-regex = '\b(sk_(?:test|live)_[0-9a-zA-Z]{24,99})\b'
+keywords = ["sk_test_", "sk_live_", "rk_test_", "rk_live_"]
+regex = '\b([sr]k_(?:test|live)_[0-9a-zA-Z]{24,99})\b'
 secret_group = 1
 
 [[rules]]
 id = "dpg.slack-token"
 category = "KnownSecret"
 confidence = "High"
-keywords = ["xoxb-", "xoxp-"]
-regex = '\b(xox[bp]-[0-9]{10,13}-[0-9]{10,13}-[a-zA-Z0-9]{24,32})\b'
+keywords = ["xoxb-", "xoxp-", "xoxa-", "xoxr-"]
+regex = '\b(xox[bpar]-[0-9]{10,13}-[0-9]{10,13}-[a-zA-Z0-9]{24,32})\b'
+secret_group = 1
+
+[[rules]]
+id = "dpg.google-api-key"
+category = "KnownSecret"
+confidence = "High"
+keywords = ["AIza"]
+regex = '\b(AIza[0-9A-Za-z\-_]{35})\b'
 secret_group = 1
 
 [[rules]]
@@ -70,4 +86,12 @@ category = "KnownSecret"
 confidence = "Low"
 keywords = ["eyJ"]
 regex = '\b(eyJ[A-Za-z0-9_-]{10,}\.ey[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,})\b'
+secret_group = 1
+
+[[rules]]
+id = "dpg.bearer-token"
+category = "KnownSecret"
+confidence = "High"
+keywords = ["Bearer", "bearer"]
+regex = '(?i)\bBearer\s+([A-Za-z0-9_\-\.]{20,256})\b'
 secret_group = 1

@@ -136,6 +136,46 @@ pub fn gen_pem_private_key<R: Rng>(rng: &mut R) -> String {
     lines.join("\n")
 }
 
+/// Generates a fake Google API key (`AIza` + 35 characters).
+pub fn gen_google_api_key<R: Rng>(rng: &mut R) -> String {
+    const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+    let body: String = (0..35)
+        .map(|_| {
+            let idx = rng.gen_range(0..CHARSET.len());
+            CHARSET[idx] as char
+        })
+        .collect();
+    format!("AIza{body}")
+}
+
+/// Generates a fake OpenSSH private key block.
+pub fn gen_openssh_private_key<R: Rng>(rng: &mut R) -> String {
+    const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut lines = Vec::new();
+    lines.push("-----BEGIN OPENSSH PRIVATE KEY-----".to_string());
+    for _ in 0..4 {
+        let line: String = (0..64)
+            .map(|_| {
+                let idx = rng.gen_range(0..CHARSET.len());
+                CHARSET[idx] as char
+            })
+            .collect();
+        lines.push(line);
+    }
+    lines.push("-----END OPENSSH PRIVATE KEY-----".to_string());
+    lines.join("\n")
+}
+
+/// Generates a fake Authorization: Bearer header value.
+pub fn gen_bearer_token<R: Rng>(rng: &mut R) -> String {
+    let body: String = rng
+        .sample_iter(&Alphanumeric)
+        .take(32)
+        .map(char::from)
+        .collect();
+    format!("Bearer {body}")
+}
+
 /// Generates a fake JWT token string (`header.payload.signature`).
 pub fn gen_jwt_token<R: Rng>(rng: &mut R) -> String {
     let p1: String = rng
