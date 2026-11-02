@@ -136,16 +136,21 @@ impl MappingStore {
     }
 
     fn encrypt_value(&self, value: &str) -> Result<Vec<u8>, DpgError> {
-        let cipher = Aes256Gcm::new_from_slice(&self.k_enc[..])
-            .map_err(|_| DpgError::Internal { code: ErrorCode::Z001 })?;
+        let cipher =
+            Aes256Gcm::new_from_slice(&self.k_enc[..]).map_err(|_| DpgError::Internal {
+                code: ErrorCode::Z001,
+            })?;
 
         let mut nonce_bytes = [0u8; 12];
         rand::thread_rng().fill_bytes(&mut nonce_bytes);
         let nonce = Nonce::from_slice(&nonce_bytes);
 
-        let ciphertext = cipher
-            .encrypt(nonce, value.as_bytes())
-            .map_err(|_| DpgError::Internal { code: ErrorCode::Z001 })?;
+        let ciphertext =
+            cipher
+                .encrypt(nonce, value.as_bytes())
+                .map_err(|_| DpgError::Internal {
+                    code: ErrorCode::Z001,
+                })?;
 
         let mut payload = Vec::with_capacity(12 + ciphertext.len());
         payload.extend_from_slice(&nonce_bytes);
@@ -161,8 +166,10 @@ impl MappingStore {
             });
         }
 
-        let cipher = Aes256Gcm::new_from_slice(&self.k_enc[..])
-            .map_err(|_| DpgError::Internal { code: ErrorCode::Z001 })?;
+        let cipher =
+            Aes256Gcm::new_from_slice(&self.k_enc[..]).map_err(|_| DpgError::Internal {
+                code: ErrorCode::Z001,
+            })?;
 
         let nonce = Nonce::from_slice(&payload[..12]);
         let ciphertext = &payload[12..];
@@ -293,7 +300,11 @@ impl MappingStore {
     }
 
     /// Looks up and decrypts the original secret value for a given placeholder.
-    pub fn lookup(&self, project_id: &ProjectId, placeholder: &str) -> Result<Option<String>, DpgError> {
+    pub fn lookup(
+        &self,
+        project_id: &ProjectId,
+        placeholder: &str,
+    ) -> Result<Option<String>, DpgError> {
         let conn = self.conn.lock().map_err(|_| DpgError::Internal {
             code: ErrorCode::Z001,
         })?;
@@ -343,7 +354,10 @@ impl MappingStore {
         })?;
 
         let rows_deleted = conn
-            .execute("DELETE FROM mapping WHERE project_id = ?1", params![project_id.as_str()])
+            .execute(
+                "DELETE FROM mapping WHERE project_id = ?1",
+                params![project_id.as_str()],
+            )
             .map_err(|_| DpgError::MappingStore {
                 code: ErrorCode::M001,
                 detail: SafeDetail::from_static("Failed to delete project mappings"),
@@ -363,12 +377,12 @@ impl MappingStore {
             code: ErrorCode::Z001,
         })?;
 
-        let rows_deleted = conn
-            .execute("DELETE FROM mapping", [])
-            .map_err(|_| DpgError::MappingStore {
-                code: ErrorCode::M001,
-                detail: SafeDetail::from_static("Failed to purge mapping table"),
-            })?;
+        let rows_deleted =
+            conn.execute("DELETE FROM mapping", [])
+                .map_err(|_| DpgError::MappingStore {
+                    code: ErrorCode::M001,
+                    detail: SafeDetail::from_static("Failed to purge mapping table"),
+                })?;
 
         let _ = conn.execute("DELETE FROM ignore_fp", []);
 
@@ -384,7 +398,10 @@ impl MappingStore {
         })?;
 
         let rows_deleted = conn
-            .execute("DELETE FROM mapping WHERE last_used_at < ?1", params![cutoff])
+            .execute(
+                "DELETE FROM mapping WHERE last_used_at < ?1",
+                params![cutoff],
+            )
             .map_err(|_| DpgError::MappingStore {
                 code: ErrorCode::M001,
                 detail: SafeDetail::from_static("Failed to purge expired mappings"),
@@ -443,7 +460,11 @@ impl MappingStore {
 }
 
 impl dpg_policy::IgnoreList for MappingStore {
-    fn is_ignored(&self, project: &ProjectId, fp: &dpg_policy::Fingerprint) -> Result<bool, DpgError> {
+    fn is_ignored(
+        &self,
+        project: &ProjectId,
+        fp: &dpg_policy::Fingerprint,
+    ) -> Result<bool, DpgError> {
         let conn = self.conn.lock().map_err(|_| DpgError::Internal {
             code: ErrorCode::Z001,
         })?;
@@ -462,10 +483,13 @@ impl dpg_policy::IgnoreList for MappingStore {
                 detail: SafeDetail::from_static("Failed to execute ignore query"),
             })?;
 
-        Ok(rows.next().map_err(|_| DpgError::MappingStore {
-            code: ErrorCode::M001,
-            detail: SafeDetail::from_static("Failed to read ignore row"),
-        })?.is_some())
+        Ok(rows
+            .next()
+            .map_err(|_| DpgError::MappingStore {
+                code: ErrorCode::M001,
+                detail: SafeDetail::from_static("Failed to read ignore row"),
+            })?
+            .is_some())
     }
 }
 
@@ -542,7 +566,9 @@ mod tests {
         let key2 = FixedKeyProvider::new([20u8; 32]);
         let store2 = MappingStore::open(&db_path, &key2).expect("open store 2");
 
-        let err = store2.lookup(&project, &ph).expect_err("PM-05: Wrong key must fail decryption");
+        let err = store2
+            .lookup(&project, &ph)
+            .expect_err("PM-05: Wrong key must fail decryption");
         assert_eq!(err.code(), ErrorCode::M002);
     }
 

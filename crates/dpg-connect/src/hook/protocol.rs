@@ -1,9 +1,9 @@
 //! Hook JSON request and response data types.
 
-use std::collections::HashMap;
-use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::collections::HashMap;
+use std::path::PathBuf;
 
 /// Raw JSON stdin received from Claude Code hook execution.
 #[derive(Debug, Clone, Deserialize, Default)]
@@ -66,7 +66,10 @@ pub struct PreToolUseSpecific {
     #[serde(rename = "permissionDecision")]
     pub permission_decision: &'static str,
     /// Explanation reason for the decision.
-    #[serde(rename = "permissionDecisionReason", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "permissionDecisionReason",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub permission_decision_reason: Option<String>,
     /// Full tool input object with placeholders restored where permitted.
     #[serde(rename = "updatedInput", skip_serializing_if = "Option::is_none")]

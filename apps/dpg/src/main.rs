@@ -139,7 +139,9 @@ fn build_engine() -> Result<(Engine, Option<Arc<MappingStore>>), DpgError> {
     let db_path = store_dir.join("mapping.db");
     let key_provider = FileKeyProvider::new(store_dir.join(".master.key"));
 
-    let store_opt = MappingStore::open(&db_path, &key_provider).ok().map(Arc::new);
+    let store_opt = MappingStore::open(&db_path, &key_provider)
+        .ok()
+        .map(Arc::new);
 
     let protector = match store_opt {
         Some(ref s) => Arc::new(DpgProtector::with_store(s.clone())),
@@ -195,18 +197,22 @@ fn main() {
                 let (engine, _) = match build_engine() {
                     Ok(e) => e,
                     Err(e) => {
-                        eprintln!("[DPG] Fatal: Failed to initialize engine [{}]: {}", e.code(), e);
+                        eprintln!(
+                            "[DPG] Fatal: Failed to initialize engine [{}]: {}",
+                            e.code(),
+                            e
+                        );
                         std::process::exit(2);
                     }
                 };
-                let exit_code = dpg_connect::run(
-                    &engine,
-                    io::stdin().lock(),
-                    io::stdout().lock(),
-                );
+                let exit_code = dpg_connect::run(&engine, io::stdin().lock(), io::stdout().lock());
                 std::process::exit(exit_code);
             }
-            Commands::Inspect { file, json, show_values } => {
+            Commands::Inspect {
+                file,
+                json,
+                show_values,
+            } => {
                 let (_engine, _) = match build_engine() {
                     Ok(e) => e,
                     Err(e) => {
@@ -216,15 +222,13 @@ fn main() {
                 };
 
                 let content = match file {
-                    Some(ref p) if p != &PathBuf::from("-") => {
-                        match std::fs::read_to_string(p) {
-                            Ok(c) => c,
-                            Err(e) => {
-                                eprintln!("Failed to read file '{}': {e}", p.display());
-                                std::process::exit(1);
-                            }
+                    Some(ref p) if p != &PathBuf::from("-") => match std::fs::read_to_string(p) {
+                        Ok(c) => c,
+                        Err(e) => {
+                            eprintln!("Failed to read file '{}': {e}", p.display());
+                            std::process::exit(1);
                         }
-                    }
+                    },
                     _ => {
                         let mut buf = String::new();
                         if let Err(e) = io::stdin().read_to_string(&mut buf) {
@@ -277,8 +281,14 @@ fn main() {
                         }
                     }
                 } else {
-                    println!("DPG Inspect - Found {} sensitive finding(s):", findings.len());
-                    println!("{:<32} {:<16} {:<10} {:<16}", "RULE", "CATEGORY", "LINE", "PREVIEW");
+                    println!(
+                        "DPG Inspect - Found {} sensitive finding(s):",
+                        findings.len()
+                    );
+                    println!(
+                        "{:<32} {:<16} {:<10} {:<16}",
+                        "RULE", "CATEGORY", "LINE", "PREVIEW"
+                    );
                     println!("{:-<78}", "");
                     for f in &findings {
                         let line_no = content[..f.span.start.min(content.len())]
@@ -312,15 +322,13 @@ fn main() {
                 };
 
                 let text = match file {
-                    Some(ref p) if p != &PathBuf::from("-") => {
-                        match std::fs::read_to_string(p) {
-                            Ok(c) => c,
-                            Err(e) => {
-                                eprintln!("Failed to read file '{}': {e}", p.display());
-                                std::process::exit(1);
-                            }
+                    Some(ref p) if p != &PathBuf::from("-") => match std::fs::read_to_string(p) {
+                        Ok(c) => c,
+                        Err(e) => {
+                            eprintln!("Failed to read file '{}': {e}", p.display());
+                            std::process::exit(1);
                         }
-                    }
+                    },
                     _ => {
                         let mut buf = String::new();
                         if let Err(e) = io::stdin().read_to_string(&mut buf) {
@@ -333,15 +341,24 @@ fn main() {
 
                 let ctx = make_cli_context(Route::Cli);
                 match engine.protect(&ctx, &text) {
-                    Ok(dpg_core::types::ProtectOutcome::Allowed { text: masked, report }) => {
+                    Ok(dpg_core::types::ProtectOutcome::Allowed {
+                        text: masked,
+                        report,
+                    }) => {
                         print!("{masked}");
-                        eprintln!("[DPG] Sanitize: Masked {} sensitive finding(s)", report.masked);
+                        eprintln!(
+                            "[DPG] Sanitize: Masked {} sensitive finding(s)",
+                            report.masked
+                        );
                         if exit_code && report.masked > 0 {
                             std::process::exit(1);
                         }
                     }
                     Ok(dpg_core::types::ProtectOutcome::Blocked { report }) => {
-                        eprintln!("[DPG] Content BLOCKED by policy ({} item(s))", report.blocked.len());
+                        eprintln!(
+                            "[DPG] Content BLOCKED by policy ({} item(s))",
+                            report.blocked.len()
+                        );
                         std::process::exit(1);
                     }
                     Err(e) => {
@@ -393,7 +410,11 @@ fn main() {
                     println!("Specify --list, --add <rule> <secret>, or --remove <rule> <secret>");
                 }
             }
-            Commands::Forget { project, all, reset } => {
+            Commands::Forget {
+                project,
+                all,
+                reset,
+            } => {
                 let (_, store_opt) = match build_engine() {
                     Ok(e) => e,
                     Err(e) => {
@@ -411,28 +432,43 @@ fn main() {
 
                 if all || reset {
                     match store.forget_all() {
-                        Ok(count) => println!("Forgot all {count} secret mappings across all projects."),
+                        Ok(count) => {
+                            println!("Forgot all {count} secret mappings across all projects.")
+                        }
                         Err(e) => eprintln!("Failed to forget mappings [{}]: {}", e.code(), e),
                     }
                 } else if let Some(proj) = project {
                     let proj_id = ProjectId::new(proj);
                     match store.forget_project(&proj_id) {
-                        Ok(count) => println!("Forgot {count} secret mappings for project '{}'.", proj_id),
-                        Err(e) => eprintln!("Failed to forget project mappings [{}]: {}", e.code(), e),
+                        Ok(count) => {
+                            println!("Forgot {count} secret mappings for project '{}'.", proj_id)
+                        }
+                        Err(e) => {
+                            eprintln!("Failed to forget project mappings [{}]: {}", e.code(), e)
+                        }
                     }
                 } else {
                     let ctx = make_cli_context(Route::Cli);
                     match store.forget_project(&ctx.project.id) {
-                        Ok(count) => println!("Forgot {count} secret mappings for current project '{}'.", ctx.project.id),
-                        Err(e) => eprintln!("Failed to forget project mappings [{}]: {}", e.code(), e),
+                        Ok(count) => println!(
+                            "Forgot {count} secret mappings for current project '{}'.",
+                            ctx.project.id
+                        ),
+                        Err(e) => {
+                            eprintln!("Failed to forget project mappings [{}]: {}", e.code(), e)
+                        }
                     }
                 }
             }
             Commands::Proxy { port, print_env } => {
                 let token = dpg_connect::proxy::generate_proxy_token();
                 if print_env {
-                    println!("export ANTHROPIC_BASE_URL=\"http://127.0.0.1:{port}/t/{token}/anthropic\"");
-                    println!("export OPENAI_BASE_URL=\"http://127.0.0.1:{port}/t/{token}/openai/v1\"");
+                    println!(
+                        "export ANTHROPIC_BASE_URL=\"http://127.0.0.1:{port}/t/{token}/anthropic\""
+                    );
+                    println!(
+                        "export OPENAI_BASE_URL=\"http://127.0.0.1:{port}/t/{token}/openai/v1\""
+                    );
                     return;
                 }
 
@@ -506,7 +542,11 @@ fn main() {
                     }
                 });
             }
-            Commands::Install { target, uninstall, dry_run } => {
+            Commands::Install {
+                target,
+                uninstall,
+                dry_run,
+            } => {
                 let target_name = target.as_deref().unwrap_or("claude-code");
                 if target_name.eq_ignore_ascii_case("claude-code") {
                     let opts = dpg_connect::InstallOptions {
@@ -532,20 +572,18 @@ fn main() {
                     std::process::exit(1);
                 }
             }
-            Commands::Doctor => {
-                match dpg_connect::run_doctor(None) {
-                    Ok(report) => {
-                        print!("{}", report.format_cli());
-                        if !report.all_passed {
-                            std::process::exit(1);
-                        }
-                    }
-                    Err(e) => {
-                        eprintln!("DPG Doctor failed to run [{}]: {}", e.code(), e);
+            Commands::Doctor => match dpg_connect::run_doctor(None) {
+                Ok(report) => {
+                    print!("{}", report.format_cli());
+                    if !report.all_passed {
                         std::process::exit(1);
                     }
                 }
-            }
+                Err(e) => {
+                    eprintln!("DPG Doctor failed to run [{}]: {}", e.code(), e);
+                    std::process::exit(1);
+                }
+            },
             Commands::Completions { shell } => {
                 let mut cmd = Cli::command();
                 let shell_type = match shell {

@@ -112,7 +112,8 @@ pub fn run_doctor(custom_settings_dir: Option<&Path>) -> Result<DoctorReport, Dp
             items.push(DiagnosticItem {
                 name: "Claude Code Settings".to_string(),
                 status: CheckStatus::Warn,
-                message: "Could not determine user home directory for .claude/settings.json".to_string(),
+                message: "Could not determine user home directory for .claude/settings.json"
+                    .to_string(),
             });
         }
     }
@@ -123,7 +124,10 @@ pub fn run_doctor(custom_settings_dir: Option<&Path>) -> Result<DoctorReport, Dp
             items.push(DiagnosticItem {
                 name: "Built-in Rules".to_string(),
                 status: CheckStatus::Pass,
-                message: format!("{} detection rules loaded and verified", ruleset.rules().len()),
+                message: format!(
+                    "{} detection rules loaded and verified",
+                    ruleset.rules().len()
+                ),
             });
         }
         Err(e) => {
@@ -201,7 +205,8 @@ fn check_claude_settings(path: &Path, items: &mut Vec<DiagnosticItem>) {
         items.push(DiagnosticItem {
             name: "Disable File Mentions".to_string(),
             status: CheckStatus::Warn,
-            message: "CLAUDE_CODE_DISABLE_FILE_MENTIONS is not set. Run 'dpg install claude-code'.".to_string(),
+            message: "CLAUDE_CODE_DISABLE_FILE_MENTIONS is not set. Run 'dpg install claude-code'."
+                .to_string(),
         });
     }
 
@@ -214,13 +219,16 @@ fn check_claude_settings(path: &Path, items: &mut Vec<DiagnosticItem>) {
         items.push(DiagnosticItem {
             name: "Claude Code Hooks".to_string(),
             status: CheckStatus::Pass,
-            message: "All DPG hooks (PostToolUse, PreToolUse, UserPromptSubmit) configured".to_string(),
+            message: "All DPG hooks (PostToolUse, PreToolUse, UserPromptSubmit) configured"
+                .to_string(),
         });
     } else {
         items.push(DiagnosticItem {
             name: "Claude Code Hooks".to_string(),
             status: CheckStatus::Warn,
-            message: "Some DPG hooks are missing from settings.json. Run 'dpg install claude-code'.".to_string(),
+            message:
+                "Some DPG hooks are missing from settings.json. Run 'dpg install claude-code'."
+                    .to_string(),
         });
     }
 }

@@ -156,11 +156,7 @@ fn process_pre_tool_use(
                 hook_specific_output: PreToolUseSpecific {
                     hook_event_name: "PreToolUse",
                     permission_decision: "deny",
-                    permission_decision_reason: Some(format!(
-                        "[DPG] Denied ({}): {}",
-                        e.code(),
-                        e
-                    )),
+                    permission_decision_reason: Some(format!("[DPG] Denied ({}): {}", e.code(), e)),
                     updated_input: Some(input_val.clone()),
                 },
             }

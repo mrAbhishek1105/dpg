@@ -174,7 +174,10 @@ mod tests {
         assert_eq!(anthropic_body["model"], "claude-3-7-sonnet-20250219");
         assert_eq!(anthropic_body["anthropic_version"], "2023-06-01");
         assert_eq!(anthropic_body["messages"][0]["role"], "user");
-        assert_eq!(anthropic_body["messages"][1]["content"][0]["type"], "tool_use");
+        assert_eq!(
+            anthropic_body["messages"][1]["content"][0]["type"],
+            "tool_use"
+        );
         assert_eq!(anthropic_body["messages"][1]["content"][0]["name"], "bash");
 
         // Verify original secrets are completely replaced with placeholders

@@ -29,9 +29,7 @@ pub fn handle_user_prompt_submit(
                 .blocked
                 .first()
                 .map(|b| b.reason.to_string())
-                .unwrap_or_else(|| {
-                    "Rule violation".to_string()
-                });
+                .unwrap_or_else(|| "Rule violation".to_string());
 
             (
                 UserPromptSubmitOutput {

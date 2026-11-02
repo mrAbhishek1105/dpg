@@ -95,31 +95,55 @@ mod tests {
     #[test]
     fn test_sr_px_03_host_header_validation() {
         let mut headers = HeaderMap::new();
-        headers.insert(axum::http::header::HOST, HeaderValue::from_static("127.0.0.1:8787"));
+        headers.insert(
+            axum::http::header::HOST,
+            HeaderValue::from_static("127.0.0.1:8787"),
+        );
         assert!(validate_request_headers(&headers, 8787).is_ok());
 
-        headers.insert(axum::http::header::HOST, HeaderValue::from_static("localhost:8787"));
+        headers.insert(
+            axum::http::header::HOST,
+            HeaderValue::from_static("localhost:8787"),
+        );
         assert!(validate_request_headers(&headers, 8787).is_ok());
 
         // DNS rebinding attack
-        headers.insert(axum::http::header::HOST, HeaderValue::from_static("evil.example:8787"));
-        assert_eq!(validate_request_headers(&headers, 8787), Err(StatusCode::FORBIDDEN));
+        headers.insert(
+            axum::http::header::HOST,
+            HeaderValue::from_static("evil.example:8787"),
+        );
+        assert_eq!(
+            validate_request_headers(&headers, 8787),
+            Err(StatusCode::FORBIDDEN)
+        );
     }
 
     #[test]
     fn test_sr_px_04_and_px_05_origin_and_sec_fetch_site() {
         let mut headers = HeaderMap::new();
-        headers.insert(axum::http::header::HOST, HeaderValue::from_static("127.0.0.1:8787"));
+        headers.insert(
+            axum::http::header::HOST,
+            HeaderValue::from_static("127.0.0.1:8787"),
+        );
 
         // Origin present -> 403
-        headers.insert(axum::http::header::ORIGIN, HeaderValue::from_static("https://evil.example"));
-        assert_eq!(validate_request_headers(&headers, 8787), Err(StatusCode::FORBIDDEN));
+        headers.insert(
+            axum::http::header::ORIGIN,
+            HeaderValue::from_static("https://evil.example"),
+        );
+        assert_eq!(
+            validate_request_headers(&headers, 8787),
+            Err(StatusCode::FORBIDDEN)
+        );
 
         headers.remove(axum::http::header::ORIGIN);
 
         // Sec-Fetch-Site cross-site -> 403
         headers.insert("sec-fetch-site", HeaderValue::from_static("cross-site"));
-        assert_eq!(validate_request_headers(&headers, 8787), Err(StatusCode::FORBIDDEN));
+        assert_eq!(
+            validate_request_headers(&headers, 8787),
+            Err(StatusCode::FORBIDDEN)
+        );
 
         headers.insert("sec-fetch-site", HeaderValue::from_static("none"));
         assert!(validate_request_headers(&headers, 8787).is_ok());

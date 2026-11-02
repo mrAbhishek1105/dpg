@@ -9,11 +9,7 @@ use serde_json::Value;
 
 /// Restores placeholder tokens in non-streaming model responses (Anthropic and OpenAI).
 /// Restores text blocks and message content ONLY. Never restores tool call arguments (PX-10).
-pub fn restore_response_body(
-    store: &MappingStore,
-    project_id: &ProjectId,
-    val: &mut Value,
-) -> u32 {
+pub fn restore_response_body(store: &MappingStore, project_id: &ProjectId, val: &mut Value) -> u32 {
     let mut restored_count = 0;
 
     // 1. Anthropic shape: content array containing {"type": "text", "text": "..."}
@@ -42,9 +38,7 @@ pub fn restore_response_body(
     // 2. OpenAI shape: choices array containing {"message": {"content": "..."}}
     if let Some(choices_arr) = val.get_mut("choices").and_then(|c| c.as_array_mut()) {
         for choice in choices_arr {
-            if let Some(content_val) = choice
-                .get_mut("message")
-                .and_then(|m| m.get_mut("content"))
+            if let Some(content_val) = choice.get_mut("message").and_then(|m| m.get_mut("content"))
             {
                 if let Some(s) = content_val.as_str() {
                     let (restored, count) = restore_text_placeholders(store, project_id, s);

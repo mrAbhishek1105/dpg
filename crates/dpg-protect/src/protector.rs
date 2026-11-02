@@ -181,10 +181,10 @@ mod tests {
     use std::path::PathBuf;
     use std::time::Instant;
 
-    use dpg_core::context::{ProjectContext, ProjectId, SessionId};
-    use dpg_core::types::{Confidence, Route, RuleId};
     use crate::key::FixedKeyProvider;
     use crate::placeholder::is_placeholder;
+    use dpg_core::context::{ProjectContext, ProjectId, SessionId};
+    use dpg_core::types::{Confidence, Route, RuleId};
 
     fn make_test_context(project_name: &str) -> RequestContext {
         RequestContext {

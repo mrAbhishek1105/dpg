@@ -1,9 +1,9 @@
 //! Placeholder token scanner for incoming tool requests.
 
-use std::sync::OnceLock;
 use dpg_core::types::Span;
 use dpg_protect::placeholder::PATTERN;
 use regex::Regex;
+use std::sync::OnceLock;
 
 static TOKEN_RE: OnceLock<Regex> = OnceLock::new();
 

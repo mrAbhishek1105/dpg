@@ -35,7 +35,11 @@ impl PathGuard {
     }
 
     /// Validates candidate path using an optional current working directory.
-    pub fn check_with_cwd(&self, candidate: &Path, cwd: Option<&Path>) -> Result<PathBuf, DpgError> {
+    pub fn check_with_cwd(
+        &self,
+        candidate: &Path,
+        cwd: Option<&Path>,
+    ) -> Result<PathBuf, DpgError> {
         let candidate_str = candidate.to_string_lossy();
 
         // 1. Reject NUL bytes
@@ -393,7 +397,8 @@ mod tests {
             #[cfg(windows)]
             {
                 let d = std::os::windows::fs::symlink_dir(&outside_dir, &symlink_dir_path).is_ok();
-                let f = std::os::windows::fs::symlink_file(&outside_file, &symlink_file_path).is_ok();
+                let f =
+                    std::os::windows::fs::symlink_file(&outside_file, &symlink_file_path).is_ok();
                 (d, f)
             }
             #[cfg(not(windows))]

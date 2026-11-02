@@ -86,7 +86,9 @@ pub fn validate_bind_address(addr: &SocketAddr) -> Result<(), DpgError> {
     if !ip.is_loopback() {
         return Err(DpgError::Configuration {
             code: ErrorCode::C002,
-            detail: SafeDetail::from_static("Proxy must bind to 127.0.0.1 only; non-loopback addresses are refused"),
+            detail: SafeDetail::from_static(
+                "Proxy must bind to 127.0.0.1 only; non-loopback addresses are refused",
+            ),
         });
     }
     Ok(())
@@ -159,15 +161,15 @@ async fn handle_proxy_request(
     // 6. Forward to upstream provider
     let upstream_base = match proxy_route {
         crate::proxy::guard::ProxyRoute::AnthropicMessages
-        | crate::proxy::guard::ProxyRoute::AnthropicCountTokens => {
-            &state.config.upstream_anthropic
-        }
-        crate::proxy::guard::ProxyRoute::OpenAiChatCompletions => {
-            &state.config.upstream_openai
-        }
+        | crate::proxy::guard::ProxyRoute::AnthropicCountTokens => &state.config.upstream_anthropic,
+        crate::proxy::guard::ProxyRoute::OpenAiChatCompletions => &state.config.upstream_openai,
     };
 
-    let upstream_url = format!("{}{}", upstream_base.trim_end_matches('/'), proxy_route.upstream_path());
+    let upstream_url = format!(
+        "{}{}",
+        upstream_base.trim_end_matches('/'),
+        proxy_route.upstream_path()
+    );
 
     let upstream_req = state
         .client
@@ -208,13 +210,23 @@ async fn handle_proxy_request(
             if let Ok(mut resp_val) = serde_json::from_slice::<Value>(&resp_bytes) {
                 restore_response_body(store, &ctx.project.id, &mut resp_val);
                 if let Ok(restored_bytes) = serde_json::to_vec(&resp_val) {
-                    return (resp_status, [(axum::http::header::CONTENT_TYPE, "application/json")], restored_bytes).into_response();
+                    return (
+                        resp_status,
+                        [(axum::http::header::CONTENT_TYPE, "application/json")],
+                        restored_bytes,
+                    )
+                        .into_response();
                 }
             }
         }
     }
 
-    (resp_status, [(axum::http::header::CONTENT_TYPE, "application/json")], resp_bytes).into_response()
+    (
+        resp_status,
+        [(axum::http::header::CONTENT_TYPE, "application/json")],
+        resp_bytes,
+    )
+        .into_response()
 }
 
 fn copy_forward_headers(src: &HeaderMap, dst: reqwest::RequestBuilder) -> reqwest::RequestBuilder {

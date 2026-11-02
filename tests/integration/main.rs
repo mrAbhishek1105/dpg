@@ -21,11 +21,7 @@ fn test_cli_inspect_no_leak_and_json() {
 
     // 1. Default inspect: Must NEVER leak raw secret value
     let mut cmd = Command::cargo_bin("dpg").unwrap();
-    let assert = cmd
-        .arg("inspect")
-        .arg(&file_path)
-        .assert()
-        .success();
+    let assert = cmd.arg("inspect").arg(&file_path).assert().success();
 
     let stdout = String::from_utf8(assert.get_output().stdout.clone()).unwrap();
     let stderr = String::from_utf8(assert.get_output().stderr.clone()).unwrap();
@@ -123,10 +119,7 @@ fn test_cli_doctor_runs_cleanly() {
 fn test_cli_completions_generation() {
     for shell in ["bash", "zsh", "fish", "powershell"] {
         let mut cmd = Command::cargo_bin("dpg").unwrap();
-        cmd.arg("completions")
-            .arg(shell)
-            .assert()
-            .success();
+        cmd.arg("completions").arg(shell).assert().success();
     }
 }
 

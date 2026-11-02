@@ -78,7 +78,9 @@ pub fn install_claude_code(opts: &InstallOptions) -> Result<InstallReport, DpgEr
 
         serde_json::from_str(&content).map_err(|_| DpgError::Integration {
             code: ErrorCode::I001,
-            detail: SafeDetail::from_static("Invalid JSON in existing settings.json; refusing to overwrite"),
+            detail: SafeDetail::from_static(
+                "Invalid JSON in existing settings.json; refusing to overwrite",
+            ),
         })?
     } else {
         json!({})
@@ -108,21 +110,14 @@ pub fn install_claude_code(opts: &InstallOptions) -> Result<InstallReport, DpgEr
 
     // 1. Merge env flag: CLAUDE_CODE_DISABLE_FILE_MENTIONS = "1"
     if let Some(settings_obj) = settings.as_object_mut() {
-        let env_map = settings_obj
-            .entry("env")
-            .or_insert_with(|| json!({}));
+        let env_map = settings_obj.entry("env").or_insert_with(|| json!({}));
 
         if let Some(env_obj) = env_map.as_object_mut() {
-            env_obj.insert(
-                "CLAUDE_CODE_DISABLE_FILE_MENTIONS".to_string(),
-                json!("1"),
-            );
+            env_obj.insert("CLAUDE_CODE_DISABLE_FILE_MENTIONS".to_string(), json!("1"));
         }
 
         // 2. Merge hooks
-        let hooks_map = settings_obj
-            .entry("hooks")
-            .or_insert_with(|| json!({}));
+        let hooks_map = settings_obj.entry("hooks").or_insert_with(|| json!({}));
 
         if let Some(hooks_obj) = hooks_map.as_object_mut() {
             // PostToolUse hook
@@ -168,12 +163,11 @@ pub fn install_claude_code(opts: &InstallOptions) -> Result<InstallReport, DpgEr
         }
     }
 
-    let serialized = serde_json::to_string_pretty(&settings).map_err(|_| {
-        DpgError::Integration {
+    let serialized =
+        serde_json::to_string_pretty(&settings).map_err(|_| DpgError::Integration {
             code: ErrorCode::I001,
             detail: SafeDetail::from_static("Failed to serialize updated settings.json"),
-        }
-    })?;
+        })?;
 
     if !opts.dry_run {
         fs::write(&settings_path, &serialized).map_err(|_| DpgError::Integration {
@@ -194,7 +188,11 @@ pub fn install_claude_code(opts: &InstallOptions) -> Result<InstallReport, DpgEr
     })
 }
 
-fn merge_hook_matcher_entry(hooks_obj: &mut serde_json::Map<String, Value>, event: &str, new_entry: Value) {
+fn merge_hook_matcher_entry(
+    hooks_obj: &mut serde_json::Map<String, Value>,
+    event: &str,
+    new_entry: Value,
+) {
     let arr = hooks_obj.entry(event).or_insert_with(|| json!([]));
     if let Some(list) = arr.as_array_mut() {
         // Check if command already exists
@@ -217,7 +215,11 @@ fn merge_hook_matcher_entry(hooks_obj: &mut serde_json::Map<String, Value>, even
     }
 }
 
-fn merge_hook_simple_entry(hooks_obj: &mut serde_json::Map<String, Value>, event: &str, new_entry: Value) {
+fn merge_hook_simple_entry(
+    hooks_obj: &mut serde_json::Map<String, Value>,
+    event: &str,
+    new_entry: Value,
+) {
     let arr = hooks_obj.entry(event).or_insert_with(|| json!([]));
     if let Some(list) = arr.as_array_mut() {
         let already_present = list.iter().any(|item| {
@@ -254,10 +256,11 @@ fn uninstall_claude_code(settings_path: &Path, dry_run: bool) -> Result<InstallR
         detail: SafeDetail::from_static("Failed to read settings.json for uninstall"),
     })?;
 
-    let mut settings: Value = serde_json::from_str(&content).map_err(|_| DpgError::Integration {
-        code: ErrorCode::I001,
-        detail: SafeDetail::from_static("Invalid JSON in settings.json during uninstall"),
-    })?;
+    let mut settings: Value =
+        serde_json::from_str(&content).map_err(|_| DpgError::Integration {
+            code: ErrorCode::I001,
+            detail: SafeDetail::from_static("Invalid JSON in settings.json during uninstall"),
+        })?;
 
     let mut changed = false;
 
@@ -287,16 +290,22 @@ fn uninstall_claude_code(settings_path: &Path, dry_run: bool) -> Result<InstallR
 
     // Remove CLAUDE_CODE_DISABLE_FILE_MENTIONS if present
     if let Some(env_obj) = settings.get_mut("env").and_then(|e| e.as_object_mut()) {
-        if env_obj.remove("CLAUDE_CODE_DISABLE_FILE_MENTIONS").is_some() {
+        if env_obj
+            .remove("CLAUDE_CODE_DISABLE_FILE_MENTIONS")
+            .is_some()
+        {
             changed = true;
         }
     }
 
     if changed && !dry_run {
-        let serialized = serde_json::to_string_pretty(&settings).map_err(|_| DpgError::Integration {
-            code: ErrorCode::I001,
-            detail: SafeDetail::from_static("Failed to serialize settings.json after uninstall"),
-        })?;
+        let serialized =
+            serde_json::to_string_pretty(&settings).map_err(|_| DpgError::Integration {
+                code: ErrorCode::I001,
+                detail: SafeDetail::from_static(
+                    "Failed to serialize settings.json after uninstall",
+                ),
+            })?;
         fs::write(settings_path, serialized).map_err(|_| DpgError::Integration {
             code: ErrorCode::I001,
             detail: SafeDetail::from_static("Failed to write settings.json after uninstall"),
@@ -340,7 +349,11 @@ mod tests {
                 ]
             }
         });
-        fs::write(&settings_path, serde_json::to_string_pretty(&initial_json).unwrap()).unwrap();
+        fs::write(
+            &settings_path,
+            serde_json::to_string_pretty(&initial_json).unwrap(),
+        )
+        .unwrap();
 
         let opts = InstallOptions {
             uninstall: false,

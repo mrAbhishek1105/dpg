@@ -118,7 +118,9 @@ impl Restorer for DpgRestorer {
             None => {
                 return Err(DpgError::Restoration {
                     code: ErrorCode::R001,
-                    detail: SafeDetail::from_static("Mapping store unavailable while placeholders present"),
+                    detail: SafeDetail::from_static(
+                        "Mapping store unavailable while placeholders present",
+                    ),
                 });
             }
         };
@@ -284,7 +286,10 @@ mod tests {
         };
 
         let outcome = restorer.restore(&ctx, req).expect("restore");
-        assert!(outcome.allowed, "RG-01: Write inside project must be allowed");
+        assert!(
+            outcome.allowed,
+            "RG-01: Write inside project must be allowed"
+        );
         assert_eq!(outcome.report.masked, 1);
 
         let content_field = outcome
@@ -332,7 +337,10 @@ mod tests {
         };
 
         let outcome = restorer.restore(&ctx, req).expect("restore edit");
-        assert!(outcome.allowed, "RG-02: Edit inside project must be allowed");
+        assert!(
+            outcome.allowed,
+            "RG-02: Edit inside project must be allowed"
+        );
         assert_eq!(outcome.report.masked, 2);
 
         // Verify old_string restored
@@ -378,7 +386,10 @@ mod tests {
         let bash_req = RestoreRequest {
             tool_name: "Bash".to_string(),
             target_path: None,
-            fields: vec![("command".to_string(), format!("curl -H 'Auth: {ph}' http://api.com"))],
+            fields: vec![(
+                "command".to_string(),
+                format!("curl -H 'Auth: {ph}' http://api.com"),
+            )],
         };
         let bash_res = restorer.restore(&ctx, bash_req).expect("bash check");
         assert!(bash_res.allowed);
@@ -392,7 +403,10 @@ mod tests {
         let web_req = RestoreRequest {
             tool_name: "WebFetch".to_string(),
             target_path: None,
-            fields: vec![("url".to_string(), format!("https://example.com/api?token={ph}"))],
+            fields: vec![(
+                "url".to_string(),
+                format!("https://example.com/api?token={ph}"),
+            )],
         };
         let web_res = restorer.restore(&ctx, web_req).expect("web check");
         assert!(web_res.allowed);
@@ -460,7 +474,10 @@ mod tests {
         let req = RestoreRequest {
             tool_name: "Write".to_string(),
             target_path: Some(file_path),
-            fields: vec![("content".to_string(), "TOKEN=DPG_SECRET_89ABCDEF".to_string())],
+            fields: vec![(
+                "content".to_string(),
+                "TOKEN=DPG_SECRET_89ABCDEF".to_string(),
+            )],
         };
 
         let err = restorer
@@ -478,19 +495,13 @@ mod tests {
         std::fs::create_dir_all(&outside_dir).expect("create outside");
 
         let inside_file = project_root.join("valid.txt");
-        let recheck_inside = DpgRestorer::post_write_path_recheck(
-            &project_root,
-            "Write",
-            &inside_file,
-        );
+        let recheck_inside =
+            DpgRestorer::post_write_path_recheck(&project_root, "Write", &inside_file);
         assert!(recheck_inside.is_ok(), "Inside write recheck must pass");
 
         let outside_file = outside_dir.join("escaped.txt");
-        let recheck_outside = DpgRestorer::post_write_path_recheck(
-            &project_root,
-            "Write",
-            &outside_file,
-        );
+        let recheck_outside =
+            DpgRestorer::post_write_path_recheck(&project_root, "Write", &outside_file);
         assert!(
             recheck_outside.is_err(),
             "F-04: Outside write recheck must fail"
