@@ -425,6 +425,8 @@ dependencies = [
  "dpg-restore",
  "dpg-testgen",
  "predicates",
+ "rand 0.8.8",
+ "rand_chacha",
 ]
 
 [[package]]
