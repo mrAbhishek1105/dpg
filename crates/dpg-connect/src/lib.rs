@@ -14,10 +14,12 @@
 pub mod doctor;
 pub mod hook;
 pub mod install;
+pub mod proxy;
 
 pub use doctor::{run_doctor, DoctorReport};
 pub use hook::run;
 pub use install::{install_claude_code, InstallOptions, InstallReport};
+pub use proxy::{build_proxy_router, ProxyConfig, ProxyState};
 
 /// Returns the version of the `dpg-connect` crate.
 pub fn version() -> &'static str {
