@@ -5,7 +5,7 @@
 //! - Error taxonomy (`DpgError`, `ErrorCode`, `SafeDetail`).
 //! - Configuration loading and validation (`Config`, `load_config`, `ConfigWarning`).
 //! - Request and project contexts.
-//! - Metadata-only event logging.
+//! - Metadata-only event logging (`Event`, `EventLog`, `init_logging`).
 //! - The `Engine` orchestrator and its component traits (`Detector`, `PolicyEngine`, `Protector`, `Restorer`).
 
 #![forbid(unsafe_code)]
@@ -14,9 +14,13 @@
 
 pub mod config;
 pub mod error;
+pub mod event;
+pub mod logging;
 
 pub use config::{load_config, Config, ConfigWarning, LoadOptions};
 pub use error::{DpgError, ErrorCode, SafeDetail};
+pub use event::{hash_identifier, hash_path, Event, EventLog};
+pub use logging::init_logging;
 
 /// Returns the version of the `dpg-core` crate.
 pub fn version() -> &'static str {
