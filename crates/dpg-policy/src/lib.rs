@@ -10,6 +10,14 @@
 #![warn(missing_docs)]
 #![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::expect_used))]
 
+pub mod engine;
+pub mod explain;
+pub mod ignore;
+
+pub use engine::{action_config_to_action, DpgPolicy};
+pub use explain::{explain, format_reason, PolicySource};
+pub use ignore::{compute_fingerprint, Fingerprint, IgnoreList, InMemoryIgnoreList};
+
 /// Returns the version of the `dpg-policy` crate.
 pub fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")

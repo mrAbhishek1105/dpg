@@ -474,6 +474,8 @@ name = "dpg-policy"
 version = "0.0.1"
 dependencies = [
  "dpg-core",
+ "hmac",
+ "sha2",
 ]
 
 [[package]]
