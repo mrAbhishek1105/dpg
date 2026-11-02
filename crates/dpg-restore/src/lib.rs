@@ -10,9 +10,11 @@
 #![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::expect_used))]
 
 pub mod path_guard;
+pub mod restorer;
 pub mod scan;
 
 pub use path_guard::PathGuard;
+pub use restorer::{DpgRestorer, Restore};
 pub use scan::{scan_tokens, ScannedToken};
 
 /// Returns the version of the `dpg-restore` crate.
