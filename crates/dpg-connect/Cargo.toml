@@ -11,3 +11,16 @@ workspace = true
 
 [dependencies]
 dpg-core = { workspace = true }
+dpg-policy = { workspace = true }
+dpg-detect = { workspace = true }
+dpg-protect = { workspace = true }
+dpg-restore = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+dunce = { workspace = true }
+directories = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+dpg-testgen = { workspace = true }

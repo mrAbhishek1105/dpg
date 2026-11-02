@@ -17,6 +17,7 @@ dpg-protect = { workspace = true }
 dpg-restore = { workspace = true }
 dpg-connect = { workspace = true }
 clap = { workspace = true }
+directories = { workspace = true }
 
 [dev-dependencies]
 assert_cmd = { workspace = true }

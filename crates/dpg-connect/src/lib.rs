@@ -11,6 +11,14 @@
 #![warn(missing_docs)]
 #![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::expect_used))]
 
+pub mod doctor;
+pub mod hook;
+pub mod install;
+
+pub use doctor::{run_doctor, DoctorReport};
+pub use hook::run;
+pub use install::{install_claude_code, InstallOptions, InstallReport};
+
 /// Returns the version of the `dpg-connect` crate.
 pub fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")

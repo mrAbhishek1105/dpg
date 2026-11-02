@@ -494,6 +494,7 @@ dependencies = [
  "assert_cmd",
  "clap",
  "criterion",
+ "directories",
  "dpg-connect",
  "dpg-core",
  "dpg-detect",
@@ -510,7 +511,18 @@ dependencies = [
 name = "dpg-connect"
 version = "0.0.1"
 dependencies = [
+ "directories",
  "dpg-core",
+ "dpg-detect",
+ "dpg-policy",
+ "dpg-protect",
+ "dpg-restore",
+ "dpg-testgen",
+ "dunce",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tracing",
 ]
 
 [[package]]
