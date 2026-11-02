@@ -8,6 +8,7 @@ members = [
     "crates/dpg-protect",
     "crates/dpg-restore",
     "crates/dpg-connect",
+    "tests/fixtures/gen",
 ]
 
 [workspace.package]
@@ -38,6 +39,8 @@ assert_cmd = "2.0"
 predicates = "3.1"
 tempfile = "3.17"
 proptest = "1.5"
+rand = "0.8"
+rand_chacha = "0.3"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
