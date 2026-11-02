@@ -1,0 +1,139 @@
+# Detection rules imported from gitleaks (v8.18.4)
+# Upstream commit: 7cb43d81b490f0556f8742d4a520e5c8e31a1ba7
+# Licence: MIT (see rules/THIRD_PARTY.md)
+
+[[rules]]
+id = "gitleaks.aws-access-token"
+category = "KnownSecret"
+confidence = "High"
+keywords = ["AKIA", "AGPA", "AIDA", "AROA", "AIPA", "ANPA", "ANVA", "ASIA"]
+regex = '\b((?:A3T[A-Z0-9]|AKIA|AGPA|AIDA|AROA|AIPA|ANPA|ANVA|ASIA)[A-Z0-9]{16})\b'
+secret_group = 1
+
+[[rules]]
+id = "gitleaks.github-pat"
+category = "KnownSecret"
+confidence = "High"
+keywords = ["ghp_", "gho_", "ghu_", "ghs_", "ghr_"]
+regex = '\b(gh[pousr]_[A-Za-z0-9_]{36,255})\b'
+secret_group = 1
+
+[[rules]]
+id = "gitleaks.github-fine-grained-pat"
+category = "KnownSecret"
+confidence = "High"
+keywords = ["github_pat_"]
+regex = '\b(github_pat_[0-9a-zA-Z_]{82})\b'
+secret_group = 1
+
+[[rules]]
+id = "gitleaks.gitlab-pat"
+category = "KnownSecret"
+confidence = "High"
+keywords = ["glpat-"]
+regex = '\b(glpat-[0-9a-zA-Z\-_]{20,22})\b'
+secret_group = 1
+
+[[rules]]
+id = "gitleaks.slack-bot-token"
+category = "KnownSecret"
+confidence = "High"
+keywords = ["xoxb-"]
+regex = '\b(xoxb-[0-9]{10,13}-[0-9]{10,13}-[a-zA-Z0-9]{24})\b'
+secret_group = 1
+
+[[rules]]
+id = "gitleaks.slack-user-token"
+category = "KnownSecret"
+confidence = "High"
+keywords = ["xoxp-"]
+regex = '\b(xoxp-[0-9]{10,13}-[0-9]{10,13}-[a-zA-Z0-9]{24})\b'
+secret_group = 1
+
+[[rules]]
+id = "gitleaks.stripe-api-key"
+category = "KnownSecret"
+confidence = "High"
+keywords = ["sk_test_", "sk_live_", "rk_test_", "rk_live_"]
+regex = '\b([sr]k_(?:test|live)_[0-9a-zA-Z]{24,34})\b'
+secret_group = 1
+
+[[rules]]
+id = "gitleaks.sendgrid-api-key"
+category = "KnownSecret"
+confidence = "High"
+keywords = ["SG."]
+regex = '\b(SG\.[a-zA-Z0-9_\-\.]{22}\.[a-zA-Z0-9_\-\.]{43})\b'
+secret_group = 1
+
+[[rules]]
+id = "gitleaks.twilio-api-key"
+category = "KnownSecret"
+confidence = "High"
+keywords = ["SK"]
+regex = '\b(SK[0-9a-fA-F]{32})\b'
+secret_group = 1
+
+[[rules]]
+id = "gitleaks.mailgun-api-key"
+category = "KnownSecret"
+confidence = "High"
+keywords = ["key-"]
+regex = '\b(key-[0-9a-zA-Z]{32})\b'
+secret_group = 1
+
+[[rules]]
+id = "gitleaks.square-access-token"
+category = "KnownSecret"
+confidence = "High"
+keywords = ["sq0atp-"]
+regex = '\b(sq0atp-[0-9A-Za-z\-_]{22})\b'
+secret_group = 1
+
+[[rules]]
+id = "gitleaks.npm-access-token"
+category = "KnownSecret"
+confidence = "High"
+keywords = ["npm_"]
+regex = '\b(npm_[A-Za-z0-9]{36})\b'
+secret_group = 1
+
+[[rules]]
+id = "gitleaks.pypi-upload-token"
+category = "KnownSecret"
+confidence = "High"
+keywords = ["pypi-AgEIcHlwaS5vcmc"]
+regex = '\b(pypi-AgEIcHlwaS5vcmc[A-Za-z0-9\-_]{50,1000})\b'
+secret_group = 1
+
+[[rules]]
+id = "gitleaks.huggingface-api-token"
+category = "KnownSecret"
+confidence = "High"
+keywords = ["hf_"]
+regex = '\b(hf_[a-zA-Z0-9]{34})\b'
+secret_group = 1
+
+[[rules]]
+id = "gitleaks.telegram-bot-token"
+category = "KnownSecret"
+confidence = "High"
+keywords = [":"]
+regex = '\b([0-9]{8,10}:[a-zA-Z0-9_-]{35})\b'
+secret_group = 1
+
+[[rules]]
+id = "gitleaks.datadog-api-key"
+category = "KnownSecret"
+confidence = "High"
+keywords = ["datadog"]
+regex = '(?i)datadog(?:[_-]?api[_-]?key)?\s*[:=]\s*[\"\x27]?([a-f0-9]{32})[\"\x27]?'
+secret_group = 1
+
+[[rules]]
+id = "gitleaks.shopify-access-token"
+category = "KnownSecret"
+confidence = "High"
+keywords = ["shpat_", "shpca_", "shppa_"]
+regex = '\b(shp(?:at|ca|pa)_[a-fA-F0-9]{32})\b'
+secret_group = 1

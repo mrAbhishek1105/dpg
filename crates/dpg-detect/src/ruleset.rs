@@ -6,8 +6,14 @@ use dpg_core::error::{DpgError, ErrorCode, SafeDetail};
 use crate::prefilter::Prefilter;
 use crate::rules::{load_rules_toml, Rule, RuleSource};
 
-/// Embedded built-in rules TOML file.
-const BUILTIN_RULES_TOML: &str = include_str!("../../../rules/dpg.toml");
+/// Embedded built-in DPG rules TOML file.
+const BUILTIN_DPG_RULES_TOML: &str = include_str!("../../../rules/dpg.toml");
+
+/// Embedded gitleaks-derived rules TOML file.
+const BUILTIN_GITLEAKS_RULES_TOML: &str = include_str!("../../../rules/gitleaks.toml");
+
+/// Pinned gitleaks commit SHA.
+pub const GITLEAKS_PINNED_COMMIT: &str = "7cb43d81b490f0556f8742d4a520e5c8e31a1ba7";
 
 /// An immutable, compiled set of detection rules and terms prefilters.
 pub struct RuleSet {
@@ -17,9 +23,16 @@ pub struct RuleSet {
 }
 
 impl RuleSet {
-    /// Loads and compiles the default built-in DPG detection rules.
+    /// Loads and compiles the default built-in DPG and gitleaks detection rules.
     pub fn builtin() -> Result<Self, DpgError> {
-        let rules = load_rules_toml(BUILTIN_RULES_TOML, RuleSource::Dpg)?;
+        let mut rules = load_rules_toml(BUILTIN_DPG_RULES_TOML, RuleSource::Dpg)?;
+        let mut gitleaks_rules = load_rules_toml(
+            BUILTIN_GITLEAKS_RULES_TOML,
+            RuleSource::Gitleaks {
+                commit: GITLEAKS_PINNED_COMMIT,
+            },
+        )?;
+        rules.append(&mut gitleaks_rules);
         Self::from_rules(rules)
     }
 
@@ -112,5 +125,41 @@ mod tests {
             .find_iter("Working on supersecretprojectname today")
             .collect();
         assert_eq!(matches.len(), 1);
+    }
+
+    #[test]
+    fn test_gitleaks_rules_import_and_compilation() {
+        let ruleset = RuleSet::builtin().expect("builtin ruleset with gitleaks");
+        let gitleaks_rules: Vec<_> = ruleset
+            .rules()
+            .iter()
+            .filter(|r| matches!(r.source, RuleSource::Gitleaks { .. }))
+            .collect();
+        assert!(
+            !gitleaks_rules.is_empty(),
+            "must have imported gitleaks rules"
+        );
+
+        // Verify gitlab pat rule
+        let gitlab_rule = gitleaks_rules
+            .iter()
+            .find(|r| r.id.as_str() == "gitleaks.gitlab-pat")
+            .expect("gitlab pat rule found");
+        let text_gitlab = "token: glpat-1234567890abcdefghij";
+        let findings = gitlab_rule.scan(text_gitlab);
+        assert_eq!(findings.len(), 1);
+        assert_eq!(
+            findings[0].span.as_str(text_gitlab),
+            "glpat-1234567890abcdefghij"
+        );
+
+        // Verify sendgrid rule
+        let sg_rule = gitleaks_rules
+            .iter()
+            .find(|r| r.id.as_str() == "gitleaks.sendgrid-api-key")
+            .expect("sendgrid rule found");
+        let text_sg = "SG.1234567890123456789012.1234567890123456789012345678901234567890123";
+        let findings = sg_rule.scan(text_sg);
+        assert_eq!(findings.len(), 1);
     }
 }
