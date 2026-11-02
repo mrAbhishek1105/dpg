@@ -1,0 +1,10 @@
+# Repository secret-scanning config for CI (gitleaks).
+# DPG test fixtures are generated at test time and must never be committed.
+# Do not add allowlist entries for realistic-looking keys; fix the test instead.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Documentation-only placeholders"
+regexes = ['''DPG_[A-Z]+_[0-9A-HJKMNP-TV-Z]{8}''', '''EXAMPLE_NOT_A_SECRET''']
+paths = ['''website/package-lock\.json''']

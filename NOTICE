@@ -1,0 +1,12 @@
+DPG — Data Protection Gateway
+Copyright 2026 The DPG Authors
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+Third-party attributions
+------------------------
+No third-party code or rule definitions are included yet.
+
+When detection rules adapted from gitleaks (https://github.com/gitleaks/gitleaks) are added,
+the gitleaks copyright notice and licence text must be reproduced here and in
+crates/dpg-detect/rules/THIRD_PARTY.md, with the exact upstream commit the rules came from.

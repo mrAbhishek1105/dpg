@@ -1,0 +1,17 @@
+name: Detection gap or false positive
+description: A secret format DPG misses, or a harmless value it flags.
+labels: ["detection", "triage"]
+body:
+  - type: markdown
+    attributes: { value: "Use a **synthetic** example that matches the format. Never paste a real key, even revoked." }
+  - type: dropdown
+    id: kind
+    attributes: { label: Kind, options: [Missed secret (false negative), Harmless value flagged (false positive)] }
+    validations: { required: true }
+  - type: input
+    id: rule
+    attributes: { label: Rule ID shown by DPG (if any) }
+  - type: textarea
+    id: sample
+    attributes: { label: Synthetic sample and context, render: text }
+    validations: { required: true }

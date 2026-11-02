@@ -1,0 +1,35 @@
+---
+title: Architecture
+description: One local Rust binary, two protection entry points, six internal modules.
+---
+
+import Architecture from '../../components/Architecture.astro';
+
+DPG V1 is **one local Rust program** with two protection entry points — the Claude Code hook
+adapter and the local proxy — plus a CLI. All of them call the same engine. The six components are
+modules (Rust crates) inside that one program, **not** separate services. There is no DPG server.
+
+<Architecture />
+
+## Components
+
+| Component | Owns | Does not do |
+|---|---|---|
+| **DPG Core** | Request lifecycle, project and session context, configuration, error handling, fail-closed default | Detection rules, provider formats |
+| **DPG Detect** | Rules (reused open rule sets, custom terms, Indian IDs, entropy), findings with offsets and rule IDs | Deciding what happens to a finding |
+| **DPG Policy** | Mask / block / warn / allow per category or rule, with an explanation | Rewriting content |
+| **DPG Protect** | Short random placeholders, consistent per project; encrypted mapping store | Restoring values |
+| **DPG Restore** | Store lookup, restore guard (Write/Edit only), path guard | Detection; writing files itself |
+| **DPG Connect** | Claude Code hook adapter, local proxy (HTTP + streaming), installer, diagnostics | Detection or policy logic |
+
+## Technology
+
+| Part | Choice |
+|---|---|
+| Engine | Rust, `regex` crate (linear-time matching) |
+| Hook adapter | same binary, `dpg hook` subcommand (JSON on stdin/stdout) |
+| Local proxy | Rust with `axum`, `tokio`, `reqwest`; bound to `127.0.0.1`; install token; Host and Origin checks |
+| Mapping store | SQLite with SQLCipher; key in the OS keychain |
+| CLI | `clap`: `inspect`, `sanitize`, `ignore`, `forget`, `install`, `doctor` |
+
+See [How DPG works](/how-it-works/) for the read and write paths, and [Security & privacy](/security/) for the guards.

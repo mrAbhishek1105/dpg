@@ -1,0 +1,56 @@
+name: Release (draft)
+
+# Manual only. Produces a DRAFT release with binaries and SHA-256 checksums.
+# A maintainer reviews and publishes it by hand. Signing/notarisation is not set up yet.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to build, e.g. v0.1.0 (must already exist)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - { os: ubuntu-latest,  target: x86_64-unknown-linux-gnu, ext: "" }
+          - { os: macos-latest,   target: aarch64-apple-darwin,     ext: "" }
+          - { os: windows-latest, target: x86_64-pc-windows-msvc,   ext: ".exe" }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - run: cargo test --workspace --all-features --locked
+      - run: cargo build --release --locked --target ${{ matrix.target }} -p dpg
+      - name: Package
+        shell: bash
+        run: |
+          mkdir dist
+          cp "target/${{ matrix.target }}/release/dpg${{ matrix.ext }}" "dist/dpg-${{ inputs.tag }}-${{ matrix.target }}${{ matrix.ext }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dpg-${{ matrix.target }}
+          path: dist/*
+
+  draft:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Checksums
+        run: cd dist && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release create "${{ inputs.tag }}" dist/* --draft --verify-tag --repo "${{ github.repository }}" --title "${{ inputs.tag }}" --notes "Draft. See CHANGELOG.md."

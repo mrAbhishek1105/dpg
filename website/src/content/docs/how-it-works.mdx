@@ -1,0 +1,64 @@
+---
+title: How DPG works
+description: The read path, the write path, and how the Claude Code hook route differs from the local proxy route.
+---
+
+import { Aside, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+import Workflow from '../../components/Workflow.astro';
+
+<Aside type="note">This page describes the V1 design. Status of each piece: [Project status](/status/).</Aside>
+
+<Workflow />
+
+## The workflow
+
+<Steps>
+1. An agent reads a file or runs a command, producing output.
+2. DPG receives that output through its integration (a Claude Code hook, or the local proxy).
+3. **DPG Detect** finds sensitive values: known key formats, `PASSWORD=`-style assignments, connection strings, your custom terms, Indian identifiers, and high-entropy strings (warning only).
+4. **DPG Policy** decides for each finding: mask, block, warn or allow — and records which rule decided.
+5. **DPG Protect** replaces masked values with placeholders such as `DPG_SECRET_7K2M9QXA`. The same value always gets the same placeholder within a project. Mappings are kept in an encrypted local store.
+6. The agent continues working with placeholders.
+7. The agent asks to write or edit a file.
+8. **DPG Restore** checks that the tool is `Write` or `Edit`, that the resolved path is inside your project (following symlinks), and that each placeholder exists for this project.
+9. Approved values are written into the file on your disk. Placeholders the agent changed or invented are left alone and reported.
+</Steps>
+
+## Two routes, different powers
+
+<Tabs>
+<TabItem label="Claude Code hooks">
+
+| Can DPG… | Through hooks |
+|---|---|
+| Mask what the agent reads (tool output) | Yes — `PostToolUse` replaces the output Claude sees |
+| Restore into file writes | Yes — `PreToolUse` rewrites `Write`/`Edit` input |
+| Rewrite a prompt you type | **No.** Hooks can only block it |
+| Protect `@file` mentions | **No** (unless an unverified setting works — being tested) |
+| Restore real values in chat replies | No |
+
+Claude Code keeps its own connection to the provider; DPG only sees what hooks show it.
+
+</TabItem>
+<TabItem label="Local proxy">
+
+| Can DPG… | Through the proxy |
+|---|---|
+| Mask everything the client sends, including typed prompts | Yes |
+| Restore placeholders in reply text | Yes (configurable) |
+| Apply the project path guard to edits | **No** — the client applies edits from reply text itself |
+| Restore into tool-call arguments | Never |
+
+For tools that accept a custom API base URL (Aider, Cline, other Anthropic/OpenAI-compatible clients).
+The client keeps using your own API key; DPG listens only on `127.0.0.1`.
+
+</TabItem>
+</Tabs>
+
+## What happens when something fails
+
+If DPG cannot inspect content it is meant to protect — a crash, a timeout, malformed input, a broken
+store — it **blocks or withholds** that content. One gap is documented: Claude Code treats a hook that
+is killed or times out as non-blocking unless configured otherwise; DPG's installer is designed to set
+the documented `onFailure: "block"` option, and DPG enforces its own shorter deadline. Whether that
+fully covers tool-output masking is still being tested.

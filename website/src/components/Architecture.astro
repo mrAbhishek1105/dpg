@@ -1,0 +1,53 @@
+---
+// One binary, two protection entry points, one engine.
+---
+<svg class="dpg-diagram" viewBox="0 0 860 400" role="img" aria-labelledby="ar-title ar-desc">
+  <title id="ar-title">DPG v1 architecture</title>
+  <desc id="ar-desc">Inside the developer machine, Claude Code calls the dpg hook, base-URL tools call the dpg proxy, and the developer uses the CLI. All three call one engine made of Core, Detect, Policy, Protect and Restore. Protect and Restore use an encrypted mapping store whose key is in the OS keychain. Only the proxy forwards traffic to the AI provider.</desc>
+  <defs>
+    <marker id="ar-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 10 5 0 10z" fill="var(--sl-color-gray-3)" />
+    </marker>
+  </defs>
+  <rect class="boundary" x="6" y="6" width="660" height="388" rx="10" />
+  <text x="20" y="28" class="muted">YOUR MACHINE — one dpg binary</text>
+
+  <rect class="box" x="20" y="44" width="170" height="44" rx="6" /><text x="34" y="71">Claude Code</text>
+  <rect class="box" x="20" y="108" width="170" height="44" rx="6" /><text x="34" y="135">Aider / Cline</text>
+  <rect class="box" x="20" y="172" width="170" height="44" rx="6" /><text x="34" y="199">You (terminal)</text>
+
+  <rect class="box" x="240" y="44" width="150" height="44" rx="6" /><text x="254" y="71">dpg hook</text>
+  <rect class="box" x="240" y="108" width="150" height="44" rx="6" /><text x="254" y="135">dpg proxy</text>
+  <rect class="box" x="240" y="172" width="150" height="44" rx="6" /><text x="254" y="199">dpg CLI</text>
+  <text x="240" y="232" class="muted">dpg-connect</text>
+
+  <path class="edge" d="M190 66H238" marker-end="url(#ar-arrow)" />
+  <path class="edge" d="M190 130H238" marker-end="url(#ar-arrow)" />
+  <path class="edge" d="M190 194H238" marker-end="url(#ar-arrow)" />
+
+  <rect class="engine" x="440" y="44" width="210" height="236" rx="8" />
+  <text x="454" y="68">Engine</text>
+  <text x="454" y="96" class="muted">core: lifecycle, fail-closed</text>
+  <text x="454" y="122" class="muted">detect: rules, validators</text>
+  <text x="454" y="148" class="muted">policy: mask/block/warn</text>
+  <text x="454" y="174" class="muted">protect: placeholders</text>
+  <text x="454" y="200" class="muted">restore: restore + path</text>
+  <text x="454" y="216" class="muted">         guard</text>
+  <path class="edge" d="M390 66H438" marker-end="url(#ar-arrow)" />
+  <path class="edge" d="M390 130H438" marker-end="url(#ar-arrow)" />
+  <path class="edge" d="M390 194H438" marker-end="url(#ar-arrow)" />
+
+  <ellipse class="engine" cx="545" cy="318" rx="80" ry="12" />
+  <path class="engine" d="M465 318v36c0 7 36 12 80 12s80-5 80-12v-36" />
+  <text x="490" y="352" class="muted">SQLCipher map</text>
+  <path class="edge-accent" d="M545 280v24" marker-end="url(#ar-arrow)" />
+  <rect class="box" x="240" y="318" width="150" height="40" rx="6" /><text x="254" y="343">OS keychain</text>
+  <path class="edge" d="M390 338H462" marker-end="url(#ar-arrow)" />
+
+  <rect class="box" x="700" y="108" width="150" height="44" rx="6" /><text x="714" y="135">AI provider</text>
+  <path class="edge-accent" d="M650 130H698" marker-end="url(#ar-arrow)" />
+  <text x="700" y="96" class="muted">masked, HTTPS</text>
+  <text x="700" y="172" class="muted">proxy route only;</text>
+  <text x="700" y="188" class="muted">Claude Code keeps</text>
+  <text x="700" y="204" class="muted">its own connection</text>
+</svg>

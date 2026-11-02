@@ -1,0 +1,19 @@
+name: Feature request
+description: Suggest a capability. Check the roadmap and non-goals first.
+labels: ["enhancement", "triage"]
+body:
+  - type: textarea
+    id: problem
+    attributes: { label: Problem you are trying to solve }
+    validations: { required: true }
+  - type: textarea
+    id: proposal
+    attributes: { label: Proposed behaviour }
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Roadmap fit
+      options: [V1 scope, V1.x, V2 Teams, V2 Integrations, V3 Enterprise, Not sure]
+  - type: textarea
+    id: security
+    attributes: { label: Security impact (what could leak or be written where?) }

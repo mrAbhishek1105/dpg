@@ -1,0 +1,69 @@
+---
+title: DPG — Data Protection Gateway
+description: Protect sensitive data while continuing to work with AI coding agents. Local-first, open source, honest about its limits.
+template: splash
+hero:
+  tagline: Protect sensitive data while continuing to work with AI coding agents. DPG swaps your secrets for placeholders and puts them back only in your local files.
+  actions:
+    - text: How it works
+      link: /how-it-works/
+      icon: right-arrow
+    - text: Project status
+      link: /status/
+      variant: minimal
+    - text: GitHub
+      link: https://github.com/mrAbhishek1105/dpg
+      icon: external
+      variant: minimal
+---
+
+import { Aside, Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+import Workflow from '../../components/Workflow.astro';
+
+<Aside type="caution" title="Pre-alpha: nothing is implemented yet">
+DPG is in its design and foundation phase. This site describes what V1 is **designed** to do. There is no installable release.
+Every capability below is labelled with its real status on the [project status](/status/) page.
+</Aside>
+
+## What DPG is
+
+DPG is a local program that sits between your AI coding agent and the AI provider. It finds
+secrets and confidential terms in what the agent reads, replaces them with placeholders such as
+`DPG_SECRET_7K2M9QXA`, and writes the real values back only when the agent writes files inside your
+project.
+
+<Workflow />
+
+## Why it exists
+
+AI coding agents read files and run commands. A `.env` file, a config file or a test log can put
+live credentials into the conversation that goes to the provider. Scanners that block the agent
+stop your work, so people switch them off. DPG is designed to **mask and continue** instead.
+
+<CardGrid>
+  <Card title="Local-first" icon="laptop">
+    Detection, masking and restoration run on your machine. There is no DPG server.
+  </Card>
+  <Card title="Restores only where it should" icon="approve-check">
+    Real values go back only into `Write` and `Edit` targets inside your project — never into shell commands, URLs or network calls.
+  </Card>
+  <Card title="Fails closed" icon="warning">
+    If DPG cannot inspect protected content, it blocks or withholds it instead of passing it through.
+  </Card>
+  <Card title="Open source" icon="open-book">
+    The full engine — detection, masking, mapping and restoration — is Apache-2.0. Read exactly what touches your secrets.
+  </Card>
+</CardGrid>
+
+## What DPG does not do
+
+DPG cannot rewrite a prompt you type through Claude Code hooks, cannot protect Cursor, Copilot or
+web chats in V1, cannot recall data already sent, and does not detect every possible secret.
+See [Security & privacy](/security/) for the full list.
+
+<CardGrid>
+  <LinkCard title="The problem" href="/problem/" description="How sensitive data reaches AI providers during agent coding." />
+  <LinkCard title="Architecture" href="/architecture/" description="One local binary, two entry points, one engine." />
+  <LinkCard title="Documentation" href="/docs/introduction/" description="Planned installation, configuration and reference." />
+  <LinkCard title="Contribute" href="/community/" description="Issues, discussions, security reports." />
+</CardGrid>

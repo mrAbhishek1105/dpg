@@ -1,0 +1,50 @@
+---
+// Mask-and-restore workflow on the Claude Code hook route. Original diagram.
+---
+<svg class="dpg-diagram" viewBox="0 0 860 330" role="img" aria-labelledby="wf-title wf-desc">
+  <title id="wf-title">DPG mask-and-restore workflow</title>
+  <desc id="wf-desc">Read path: a tool output passes through DPG detect, policy and protect, so the model sees placeholders. Write path: when the agent writes a file, DPG's restore guard and path guard put real values back only into files inside the project. Both paths share an encrypted local mapping store.</desc>
+  <defs>
+    <marker id="wf-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 10 5 0 10z" fill="var(--sl-color-gray-3)" />
+    </marker>
+  </defs>
+
+  <text x="10" y="22" class="muted">READ PATH (PostToolUse)</text>
+  <rect class="box" x="10" y="34" width="220" height="70" rx="8" />
+  <text x="24" y="62">Agent reads .env</text>
+  <text x="24" y="84" class="muted">AWS_KEY=AKIA…real</text>
+
+  <rect class="engine" x="320" y="34" width="220" height="70" rx="8" />
+  <text x="334" y="62">DPG: detect → policy</text>
+  <text x="334" y="84" class="muted">→ protect (mask)</text>
+
+  <rect class="box" x="630" y="34" width="220" height="70" rx="8" />
+  <text x="644" y="62">Model sees</text>
+  <text x="644" y="84" class="muted">AWS_KEY=DPG_SECRET_7K2M9QXA</text>
+
+  <path class="edge" d="M230 69H318" marker-end="url(#wf-arrow)" />
+  <path class="edge" d="M540 69H628" marker-end="url(#wf-arrow)" />
+
+  <ellipse class="engine" cx="430" cy="160" rx="80" ry="14" />
+  <path class="engine" d="M350 160v34c0 8 36 14 80 14s80-6 80-14v-34" />
+  <text x="378" y="196" class="muted">encrypted map</text>
+  <path class="edge-accent" d="M430 104v40" marker-end="url(#wf-arrow)" />
+  <path class="edge-accent" d="M430 210v30" marker-end="url(#wf-arrow)" />
+
+  <text x="10" y="232" class="muted">WRITE PATH (PreToolUse, Write / Edit only)</text>
+  <rect class="box" x="630" y="244" width="220" height="70" rx="8" />
+  <text x="644" y="272">Agent writes file</text>
+  <text x="644" y="294" class="muted">key = DPG_SECRET_7K2M9QXA</text>
+
+  <rect class="engine" x="320" y="244" width="220" height="70" rx="8" />
+  <text x="334" y="272">DPG: restore guard</text>
+  <text x="334" y="294" class="muted">+ path guard (in project?)</text>
+
+  <rect class="box" x="10" y="244" width="220" height="70" rx="8" />
+  <text x="24" y="272">File on your disk</text>
+  <text x="24" y="294" class="muted">key = AKIA…real</text>
+
+  <path class="edge" d="M630 279H542" marker-end="url(#wf-arrow)" />
+  <path class="edge" d="M320 279H232" marker-end="url(#wf-arrow)" />
+</svg>

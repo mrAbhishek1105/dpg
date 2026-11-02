@@ -1,0 +1,34 @@
+name: Bug report
+description: Something in DPG does not work as documented. NOT for security vulnerabilities.
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Security vulnerabilities must not be reported here.** See SECURITY.md.
+        Never paste real secrets. Use synthetic values.
+  - type: input
+    id: version
+    attributes: { label: DPG version or commit, placeholder: "v0.1.0 / abc1234" }
+    validations: { required: true }
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      options: [Detect, Policy, Protect, Restore, Claude Code hook, Local proxy, CLI, Installer / doctor, Website / docs, Other]
+    validations: { required: true }
+  - type: input
+    id: env
+    attributes: { label: Environment, placeholder: "OS, Claude Code version / proxy client and version" }
+    validations: { required: true }
+  - type: textarea
+    id: repro
+    attributes: { label: Steps to reproduce (synthetic data only) }
+    validations: { required: true }
+  - type: textarea
+    id: expected
+    attributes: { label: Expected vs actual behaviour }
+    validations: { required: true }
+  - type: textarea
+    id: logs
+    attributes: { label: "Output of `dpg doctor` and relevant metadata log lines", render: text }

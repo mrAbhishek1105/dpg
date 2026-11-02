@@ -1,0 +1,14 @@
+# Example project configuration for DPG (planned format; see docs/components/CORE.md).
+# Commit this file with your project. It may add terms/rules and tighten policy, never loosen it.
+# It must never contain secrets.
+
+[terms]
+values = ["Acme Corp", "project-falcon", "internal.acme.example", "10.20.0.0/16"]
+
+[policy]
+entropy = "mask"
+
+[[rules]]
+id = "acme.internal-token"
+category = "KnownSecret"
+regex = "acme_tok_[a-z0-9]{32}"

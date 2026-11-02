@@ -1,0 +1,35 @@
+# Rust
+/target/
+**/*.rs.bk
+
+# Node / website
+node_modules/
+website/dist/
+website/.astro/
+
+# DPG runtime artefacts (never commit)
+*.db
+*.db-wal
+*.db-shm
+.dpg/
+dpg-events*.jsonl
+
+# Local env files (may contain real secrets)
+.env
+.env.*
+!.env.example
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Source planning PDFs stay local unless the owner chooses to publish them
+*.pdf
+
+# Internal development docs stay local (root-anchored: website/src/content/docs is public)
+/docs/
+/PROJECT_STATUS.md
+/.claude/

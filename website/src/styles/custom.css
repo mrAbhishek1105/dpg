@@ -1,0 +1,20 @@
+/* Restrained palette: muted teal accent, neutral greys. */
+:root {
+  --sl-color-accent-low: #12302a;
+  --sl-color-accent: #3f9c84;
+  --sl-color-accent-high: #c6eadf;
+}
+:root[data-theme='light'] {
+  --sl-color-accent-low: #d6efe8;
+  --sl-color-accent: #2f6f5e;
+  --sl-color-accent-high: #173a31;
+}
+.dpg-diagram { width: 100%; height: auto; max-width: 860px; display: block; margin: 1.5rem auto; }
+.dpg-diagram text { font-family: var(--sl-font-system-mono, ui-monospace, monospace); font-size: 13px; fill: var(--sl-color-white); }
+.dpg-diagram .muted { fill: var(--sl-color-gray-3); font-size: 11.5px; }
+.dpg-diagram .box { fill: var(--sl-color-gray-6); stroke: var(--sl-color-gray-4); stroke-width: 1.2; }
+.dpg-diagram .engine { fill: var(--sl-color-accent-low); stroke: var(--sl-color-accent); stroke-width: 1.4; }
+.dpg-diagram .edge { stroke: var(--sl-color-gray-3); stroke-width: 1.4; fill: none; }
+.dpg-diagram .edge-accent { stroke: var(--sl-color-accent); stroke-width: 1.6; fill: none; }
+.dpg-diagram .boundary { fill: none; stroke: var(--sl-color-gray-4); stroke-dasharray: 5 4; }
+.status-table td:last-child { white-space: nowrap; }
