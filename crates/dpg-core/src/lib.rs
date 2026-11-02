@@ -6,7 +6,7 @@
 //! - Configuration loading and validation (`Config`, `load_config`, `ConfigWarning`).
 //! - Request and project contexts (`ProjectContext`, `ProjectId`, `SessionId`, `RequestContext`, `resolve_project`).
 //! - Metadata-only event logging (`Event`, `EventLog`, `init_logging`).
-//! - The `Engine` orchestrator and its component traits (`Detector`, `PolicyEngine`, `Protector`, `Restorer`).
+//! - The `Engine` orchestrator and its component traits (`Detector`, `PolicyEngine`, `Protector`, `Restorer`, `RestoreRequest`, `RestoreOutcome`).
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
@@ -14,6 +14,7 @@
 
 pub mod config;
 pub mod context;
+pub mod engine;
 pub mod error;
 pub mod event;
 pub mod logging;
@@ -23,6 +24,9 @@ pub use config::{load_config, Config, ConfigWarning, LoadOptions};
 pub use context::{
     derive_project_id, resolve_project, FixedProjectKeySource, ProjectContext, ProjectId,
     ProjectKeySource, RequestContext, SessionId,
+};
+pub use engine::{
+    Detector, Engine, PolicyEngine, Protector, RestoreOutcome, RestoreRequest, Restorer,
 };
 pub use error::{DpgError, ErrorCode, SafeDetail};
 pub use event::{hash_identifier, hash_path, Event, EventLog};
