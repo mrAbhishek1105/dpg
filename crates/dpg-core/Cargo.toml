@@ -10,3 +10,4 @@ description = "Core types, configuration, error taxonomy, and engine traits for 
 workspace = true
 
 [dependencies]
+thiserror = { workspace = true }

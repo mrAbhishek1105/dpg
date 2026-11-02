@@ -2,7 +2,7 @@
 //!
 //! This crate owns the foundational abstractions of DPG:
 //! - Shared domain types (`Span`, `Finding`, `Category`, `Action`, `Decision`, `RuleId`).
-//! - Error taxonomy (`DpgError`, `ErrorCode`).
+//! - Error taxonomy (`DpgError`, `ErrorCode`, `SafeDetail`).
 //! - Configuration loading and validation.
 //! - Request and project contexts.
 //! - Metadata-only event logging.
@@ -11,6 +11,9 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 #![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::expect_used))]
+
+pub mod error;
+pub use error::{DpgError, ErrorCode, SafeDetail};
 
 /// Returns the version of the `dpg-core` crate.
 pub fn version() -> &'static str {
