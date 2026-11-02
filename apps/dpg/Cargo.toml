@@ -21,3 +21,22 @@ clap = { workspace = true }
 [dev-dependencies]
 assert_cmd = { workspace = true }
 predicates = { workspace = true }
+criterion = { workspace = true }
+dpg-testgen = { path = "../../tests/fixtures/gen" }
+
+[[test]]
+name = "version"
+path = "tests/version.rs"
+
+[[test]]
+name = "integration"
+path = "../../tests/integration/main.rs"
+
+[[test]]
+name = "security"
+path = "../../tests/security/main.rs"
+
+[[bench]]
+name = "pipeline"
+harness = false
+path = "../../tests/benchmarks/pipeline.rs"
