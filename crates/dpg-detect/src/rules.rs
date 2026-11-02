@@ -22,20 +22,10 @@ impl Validator {
     /// Evaluates whether the candidate string satisfies the algorithmic validator.
     pub fn validate(&self, text: &str) -> bool {
         match self {
-            Validator::Verhoeff => {
-                // Strips spaces and hyphens if any
-                let clean: String = text.chars().filter(|c| c.is_ascii_digit()).collect();
-                clean.len() == 12
-            }
-            Validator::Pan => {
-                let clean = text.trim();
-                clean.len() == 10
-            }
-            Validator::Gstin => {
-                let clean = text.trim();
-                clean.len() == 15
-            }
-            Validator::UpiKnownHandle => text.contains('@'),
+            Validator::Verhoeff => crate::india::validate_aadhaar(text),
+            Validator::Pan => crate::india::validate_pan(text),
+            Validator::Gstin => crate::india::validate_gstin(text),
+            Validator::UpiKnownHandle => crate::india::validate_upi(text),
         }
     }
 }
