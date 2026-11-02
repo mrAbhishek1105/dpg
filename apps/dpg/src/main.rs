@@ -64,9 +64,14 @@ enum Commands {
         /// Output findings as structured JSON
         #[arg(long)]
         json: bool,
+        /// Show raw secret values (WARNING: reveals sensitive credentials in console)
+        #[arg(long)]
+        show_values: bool,
     },
-    /// Sanitize text from stdin to stdout with placeholders
+    /// Sanitize text from file or stdin to stdout with placeholders
     Sanitize {
+        /// File to sanitize (omit or '-' to read from stdin)
+        file: Option<PathBuf>,
         /// Exit code 1 if any secrets are detected and masked
         #[arg(long)]
         exit_code: bool,
@@ -201,7 +206,7 @@ fn main() {
                 );
                 std::process::exit(exit_code);
             }
-            Commands::Inspect { file, json } => {
+            Commands::Inspect { file, json, show_values } => {
                 let (_engine, _) = match build_engine() {
                     Ok(e) => e,
                     Err(e) => {
@@ -230,6 +235,10 @@ fn main() {
                     }
                 };
 
+                if show_values {
+                    eprintln!("[DPG WARNING] --show-values specified: sensitive secrets will be displayed in plaintext.");
+                }
+
                 let ctx = make_cli_context(Route::Cli);
                 let detector = DpgDetector::new().unwrap_or_else(|_| unreachable!());
                 let findings = match detector.scan(&content, &ctx) {
@@ -245,12 +254,17 @@ fn main() {
                         .iter()
                         .map(|f| {
                             let secret_text = &content[f.span.start..f.span.end];
+                            let preview = if show_values {
+                                secret_text.to_string()
+                            } else {
+                                redact_for_cli(secret_text)
+                            };
                             json!({
                                 "rule_id": f.rule_id.as_str(),
                                 "category": format!("{:?}", f.category),
                                 "start": f.span.start,
                                 "end": f.span.end,
-                                "preview": redact_for_cli(secret_text),
+                                "preview": preview,
                                 "confidence": format!("{:?}", f.confidence)
                             })
                         })
@@ -264,7 +278,7 @@ fn main() {
                     }
                 } else {
                     println!("DPG Inspect - Found {} sensitive finding(s):", findings.len());
-                    println!("{:<32} {:<16} {:<10} {:<16}", "RULE", "CATEGORY", "LINE", "REDACTED PREVIEW");
+                    println!("{:<32} {:<16} {:<10} {:<16}", "RULE", "CATEGORY", "LINE", "PREVIEW");
                     println!("{:-<78}", "");
                     for f in &findings {
                         let line_no = content[..f.span.start.min(content.len())]
@@ -273,17 +287,22 @@ fn main() {
                             .count()
                             + 1;
                         let secret_text = &content[f.span.start..f.span.end];
+                        let preview = if show_values {
+                            secret_text.to_string()
+                        } else {
+                            redact_for_cli(secret_text)
+                        };
                         println!(
                             "{:<32} {:<16} {:<10} {:<16}",
                             f.rule_id.as_str(),
                             format!("{:?}", f.category),
                             line_no,
-                            redact_for_cli(secret_text)
+                            preview
                         );
                     }
                 }
             }
-            Commands::Sanitize { exit_code } => {
+            Commands::Sanitize { file, exit_code } => {
                 let (engine, _) = match build_engine() {
                     Ok(e) => e,
                     Err(e) => {
@@ -292,11 +311,25 @@ fn main() {
                     }
                 };
 
-                let mut text = String::new();
-                if let Err(e) = io::stdin().read_to_string(&mut text) {
-                    eprintln!("Failed to read stdin: {e}");
-                    std::process::exit(1);
-                }
+                let text = match file {
+                    Some(ref p) if p != &PathBuf::from("-") => {
+                        match std::fs::read_to_string(p) {
+                            Ok(c) => c,
+                            Err(e) => {
+                                eprintln!("Failed to read file '{}': {e}", p.display());
+                                std::process::exit(1);
+                            }
+                        }
+                    }
+                    _ => {
+                        let mut buf = String::new();
+                        if let Err(e) = io::stdin().read_to_string(&mut buf) {
+                            eprintln!("Failed to read stdin: {e}");
+                            std::process::exit(1);
+                        }
+                        buf
+                    }
+                };
 
                 let ctx = make_cli_context(Route::Cli);
                 match engine.protect(&ctx, &text) {

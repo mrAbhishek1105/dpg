@@ -33,6 +33,7 @@ criterion = { workspace = true }
 dpg-testgen = { workspace = true }
 rand = { workspace = true }
 rand_chacha = { workspace = true }
+tempfile = { workspace = true }
 
 [[test]]
 name = "version"
