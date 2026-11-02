@@ -19,12 +19,13 @@ authors = ["DPG Contributors"]
 repository = "https://github.com/REPLACE_ME/dpg"
 
 [workspace.dependencies]
-dpg-core = { path = "crates/dpg-core" }
-dpg-detect = { path = "crates/dpg-detect" }
-dpg-policy = { path = "crates/dpg-policy" }
-dpg-protect = { path = "crates/dpg-protect" }
-dpg-restore = { path = "crates/dpg-restore" }
-dpg-connect = { path = "crates/dpg-connect" }
+dpg-core = { path = "crates/dpg-core", version = "0.0.1" }
+dpg-detect = { path = "crates/dpg-detect", version = "0.0.1" }
+dpg-policy = { path = "crates/dpg-policy", version = "0.0.1" }
+dpg-protect = { path = "crates/dpg-protect", version = "0.0.1" }
+dpg-restore = { path = "crates/dpg-restore", version = "0.0.1" }
+dpg-connect = { path = "crates/dpg-connect", version = "0.0.1" }
+dpg-testgen = { path = "tests/fixtures/gen", version = "0.0.1" }
 clap = { version = "4.5", features = ["derive"] }
 thiserror = "2.0"
 serde = { version = "1.0", features = ["derive"] }
@@ -33,7 +34,7 @@ toml = "0.8"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", default-features = false, features = ["fmt", "env-filter", "ansi"] }
 sha2 = "0.10"
-directories = "5.0"
+directories = "6.0"
 dunce = "1.0"
 assert_cmd = "2.0"
 predicates = "3.1"

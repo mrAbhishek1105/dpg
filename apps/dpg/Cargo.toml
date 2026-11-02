@@ -22,7 +22,7 @@ clap = { workspace = true }
 assert_cmd = { workspace = true }
 predicates = { workspace = true }
 criterion = { workspace = true }
-dpg-testgen = { path = "../../tests/fixtures/gen" }
+dpg-testgen = { workspace = true }
 
 [[test]]
 name = "version"
