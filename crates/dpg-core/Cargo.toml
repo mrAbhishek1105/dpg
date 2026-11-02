@@ -11,3 +11,10 @@ workspace = true
 
 [dependencies]
 thiserror = { workspace = true }
+serde = { workspace = true }
+toml = { workspace = true }
+directories = { workspace = true }
+dunce = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

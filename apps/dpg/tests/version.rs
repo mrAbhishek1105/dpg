@@ -1,4 +1,5 @@
 //! CLI version tests for `dpg`.
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 
 use assert_cmd::Command;
 use predicates::prelude::*;
