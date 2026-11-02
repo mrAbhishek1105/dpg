@@ -46,6 +46,9 @@ proptest = "1.5"
 criterion = "0.5"
 rand = "0.8"
 rand_chacha = "0.3"
+zeroize = { version = "1.8", features = ["derive", "zeroize_derive"] }
+rusqlite = { version = "0.32", features = ["bundled"] }
+aes-gcm = "0.10"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

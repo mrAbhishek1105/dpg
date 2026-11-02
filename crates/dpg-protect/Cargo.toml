@@ -11,6 +11,15 @@ workspace = true
 
 [dependencies]
 dpg-core = { workspace = true }
+dpg-policy = { workspace = true }
 rand = { workspace = true }
 regex = { workspace = true }
 serde = { workspace = true }
+zeroize = { workspace = true }
+rusqlite = { workspace = true }
+hmac = { workspace = true }
+sha2 = { workspace = true }
+aes-gcm = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

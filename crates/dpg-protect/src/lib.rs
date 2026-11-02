@@ -3,19 +3,23 @@
 //! This crate owns:
 //! - Deterministic placeholder generation and formatting (`DPG_SECRET_<BODY>`).
 //! - Encrypted SQLite/SQLCipher persistent mapping store.
-//! - OS keychain key provider integration.
+//! - OS keychain and file key provider integration.
 //! - Mapping retention, expiration, and project/global forget operations.
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 #![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::expect_used))]
 
+pub mod key;
 pub mod placeholder;
+pub mod store;
 
+pub use key::{FileKeyProvider, FixedKeyProvider, KeyProvider};
 pub use placeholder::{
     generate, generate_body, generate_csprng, is_placeholder, PlaceholderCat, CROCKFORD_BASE32,
     PATTERN,
 };
+pub use store::MappingStore;
 
 /// Returns the version of the `dpg-protect` crate.
 pub fn version() -> &'static str {
