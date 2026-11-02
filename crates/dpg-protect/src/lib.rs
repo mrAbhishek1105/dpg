@@ -12,6 +12,7 @@
 
 pub mod key;
 pub mod placeholder;
+pub mod protector;
 pub mod store;
 
 pub use key::{FileKeyProvider, FixedKeyProvider, KeyProvider};
@@ -19,6 +20,7 @@ pub use placeholder::{
     generate, generate_body, generate_csprng, is_placeholder, PlaceholderCat, CROCKFORD_BASE32,
     PATTERN,
 };
+pub use protector::{DpgProtector, Protect};
 pub use store::MappingStore;
 
 /// Returns the version of the `dpg-protect` crate.

@@ -561,7 +561,9 @@ version = "0.0.1"
 dependencies = [
  "aes-gcm",
  "dpg-core",
+ "dpg-detect",
  "dpg-policy",
+ "dpg-testgen",
  "hmac",
  "rand 0.8.8",
  "regex",
@@ -569,6 +571,7 @@ dependencies = [
  "serde",
  "sha2",
  "tempfile",
+ "tracing",
  "zeroize",
 ]
 

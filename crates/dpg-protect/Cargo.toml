@@ -20,6 +20,9 @@ rusqlite = { workspace = true }
 hmac = { workspace = true }
 sha2 = { workspace = true }
 aes-gcm = { workspace = true }
+tracing = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }
+dpg-detect = { workspace = true }
+dpg-testgen = { workspace = true }
