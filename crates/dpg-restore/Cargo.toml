@@ -12,3 +12,9 @@ workspace = true
 [dependencies]
 dpg-core = { workspace = true }
 dpg-protect = { workspace = true }
+regex = { workspace = true }
+dunce = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

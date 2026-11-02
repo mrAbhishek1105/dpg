@@ -581,6 +581,10 @@ version = "0.0.1"
 dependencies = [
  "dpg-core",
  "dpg-protect",
+ "dunce",
+ "regex",
+ "tempfile",
+ "tracing",
 ]
 
 [[package]]

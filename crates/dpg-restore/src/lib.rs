@@ -9,6 +9,10 @@
 #![warn(missing_docs)]
 #![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::expect_used))]
 
+pub mod scan;
+
+pub use scan::{scan_tokens, ScannedToken};
+
 /// Returns the version of the `dpg-restore` crate.
 pub fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")
