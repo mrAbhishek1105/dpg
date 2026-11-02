@@ -4,7 +4,7 @@
 //! - Shared domain types (`Span`, `Finding`, `Category`, `Action`, `Decision`, `RuleId`, `Route`, `Report`, `ProtectOutcome`).
 //! - Error taxonomy (`DpgError`, `ErrorCode`, `SafeDetail`).
 //! - Configuration loading and validation (`Config`, `load_config`, `ConfigWarning`).
-//! - Request and project contexts.
+//! - Request and project contexts (`ProjectContext`, `ProjectId`, `SessionId`, `RequestContext`, `resolve_project`).
 //! - Metadata-only event logging (`Event`, `EventLog`, `init_logging`).
 //! - The `Engine` orchestrator and its component traits (`Detector`, `PolicyEngine`, `Protector`, `Restorer`).
 
@@ -13,12 +13,17 @@
 #![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::expect_used))]
 
 pub mod config;
+pub mod context;
 pub mod error;
 pub mod event;
 pub mod logging;
 pub mod types;
 
 pub use config::{load_config, Config, ConfigWarning, LoadOptions};
+pub use context::{
+    derive_project_id, resolve_project, FixedProjectKeySource, ProjectContext, ProjectId,
+    ProjectKeySource, RequestContext, SessionId,
+};
 pub use error::{DpgError, ErrorCode, SafeDetail};
 pub use event::{hash_identifier, hash_path, Event, EventLog};
 pub use logging::init_logging;
