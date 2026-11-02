@@ -1,0 +1,73 @@
+# Built-in detection rules for DPG
+
+[[rules]]
+id = "dpg.pem-private-key"
+category = "PrivateKey"
+confidence = "High"
+keywords = ["-----BEGIN"]
+regex = '(?s)-----BEGIN[ A-Z0-9_-]*PRIVATE KEY-----.*?-----END[ A-Z0-9_-]*PRIVATE KEY-----'
+secret_group = 0
+
+[[rules]]
+id = "dpg.aws-access-key-id"
+category = "KnownSecret"
+confidence = "High"
+keywords = ["AKIA", "ASIA"]
+regex = '\b((?:AKIA|ASIA)[0-9A-Z]{16})\b'
+secret_group = 1
+
+[[rules]]
+id = "dpg.aws-secret-access-key"
+category = "KnownSecret"
+confidence = "High"
+keywords = ["aws_secret", "AWS_SECRET"]
+regex = '(?i)aws_secret_access_key\s*[:=]\s*["\x27]?([A-Za-z0-9/+=]{40})["\x27]?'
+secret_group = 1
+
+[[rules]]
+id = "dpg.github-pat"
+category = "KnownSecret"
+confidence = "High"
+keywords = ["ghp_", "gho_"]
+regex = '\b(gh[po]_[A-Za-z0-9_]{36,255})\b'
+secret_group = 1
+
+[[rules]]
+id = "dpg.openai-api-key"
+category = "KnownSecret"
+confidence = "High"
+keywords = ["sk-proj-", "sk-"]
+regex = '\b(sk-(?:proj-)?[A-Za-z0-9_-]{32,100})\b'
+secret_group = 1
+
+[[rules]]
+id = "dpg.anthropic-api-key"
+category = "KnownSecret"
+confidence = "High"
+keywords = ["sk-ant-api03-"]
+regex = '\b(sk-ant-api03-[A-Za-z0-9_-]{80,120})\b'
+secret_group = 1
+
+[[rules]]
+id = "dpg.stripe-api-key"
+category = "KnownSecret"
+confidence = "High"
+keywords = ["sk_test_", "sk_live_"]
+regex = '\b(sk_(?:test|live)_[0-9a-zA-Z]{24,99})\b'
+secret_group = 1
+
+[[rules]]
+id = "dpg.slack-token"
+category = "KnownSecret"
+confidence = "High"
+keywords = ["xoxb-", "xoxp-"]
+regex = '\b(xox[bp]-[0-9]{10,13}-[0-9]{10,13}-[a-zA-Z0-9]{24,32})\b'
+secret_group = 1
+
+[[rules]]
+id = "dpg.jwt-token"
+category = "KnownSecret"
+confidence = "Low"
+keywords = ["eyJ"]
+regex = '\b(eyJ[A-Za-z0-9_-]{10,}\.ey[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,})\b'
+secret_group = 1

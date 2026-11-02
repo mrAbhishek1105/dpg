@@ -456,7 +456,12 @@ dependencies = [
 name = "dpg-detect"
 version = "0.0.1"
 dependencies = [
+ "aho-corasick",
  "dpg-core",
+ "proptest",
+ "regex",
+ "serde",
+ "toml",
 ]
 
 [[package]]

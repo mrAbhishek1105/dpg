@@ -11,6 +11,14 @@
 #![warn(missing_docs)]
 #![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::expect_used))]
 
+pub mod prefilter;
+pub mod rules;
+pub mod ruleset;
+
+pub use prefilter::Prefilter;
+pub use rules::{load_rules_toml, parse_category, Rule, RuleDef, RuleFile, RuleSource, Validator};
+pub use ruleset::RuleSet;
+
 /// Returns the version of the `dpg-detect` crate.
 pub fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")
