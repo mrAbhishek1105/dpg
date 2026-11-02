@@ -6,6 +6,7 @@
 //! - Configuration loading and validation (`Config`, `load_config`, `ConfigWarning`).
 //! - Request and project contexts (`ProjectContext`, `ProjectId`, `SessionId`, `RequestContext`, `resolve_project`).
 //! - Metadata-only event logging (`Event`, `EventLog`, `init_logging`).
+//! - Fail-closed execution wrappers and panic hooks (`FailClosed`, `fail_closed_wrap`, `run_fail_closed`).
 //! - The `Engine` orchestrator and its component traits (`Detector`, `PolicyEngine`, `Protector`, `Restorer`, `RestoreRequest`, `RestoreOutcome`).
 
 #![forbid(unsafe_code)]
@@ -17,6 +18,7 @@ pub mod context;
 pub mod engine;
 pub mod error;
 pub mod event;
+pub mod fail_closed;
 pub mod logging;
 pub mod types;
 
@@ -30,6 +32,7 @@ pub use engine::{
 };
 pub use error::{DpgError, ErrorCode, SafeDetail};
 pub use event::{hash_identifier, hash_path, Event, EventLog};
+pub use fail_closed::{fail_closed_wrap, run_fail_closed, set_fail_closed_panic_hook, FailClosed};
 pub use logging::init_logging;
 pub use types::{
     Action, BlockItem, Category, Confidence, Decision, Finding, PartKind, ProtectOutcome, Report,
