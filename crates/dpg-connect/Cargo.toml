@@ -1,0 +1,13 @@
+[package]
+name = "dpg-connect"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Agent hooks, local proxy server, streaming restorer, installer, and diagnostics for DPG"
+
+[lints]
+workspace = true
+
+[dependencies]
+dpg-core = { workspace = true }

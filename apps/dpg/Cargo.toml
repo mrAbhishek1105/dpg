@@ -1,0 +1,23 @@
+[package]
+name = "dpg"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Data Protection Gateway (DPG) CLI and engine entry point"
+
+[lints]
+workspace = true
+
+[dependencies]
+dpg-core = { workspace = true }
+dpg-detect = { workspace = true }
+dpg-policy = { workspace = true }
+dpg-protect = { workspace = true }
+dpg-restore = { workspace = true }
+dpg-connect = { workspace = true }
+clap = { workspace = true }
+
+[dev-dependencies]
+assert_cmd = { workspace = true }
+predicates = { workspace = true }

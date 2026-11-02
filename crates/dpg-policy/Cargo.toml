@@ -1,0 +1,13 @@
+[package]
+name = "dpg-policy"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Policy engine, action resolution, explanation messages, and ignore lists for DPG"
+
+[lints]
+workspace = true
+
+[dependencies]
+dpg-core = { workspace = true }

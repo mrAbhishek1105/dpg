@@ -1,0 +1,12 @@
+[package]
+name = "dpg-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Core types, configuration, error taxonomy, and engine traits for DPG"
+
+[lints]
+workspace = true
+
+[dependencies]
