@@ -11,11 +11,13 @@
 #![warn(missing_docs)]
 #![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::expect_used))]
 
+pub mod conn;
 pub mod kv;
 pub mod prefilter;
 pub mod rules;
 pub mod ruleset;
 
+pub use conn::{ConnParts, ConnScanner};
 pub use kv::{is_dummy_or_placeholder, KvScanner};
 pub use prefilter::Prefilter;
 pub use rules::{load_rules_toml, parse_category, Rule, RuleDef, RuleFile, RuleSource, Validator};
