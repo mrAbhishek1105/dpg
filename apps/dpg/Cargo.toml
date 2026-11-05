@@ -18,12 +18,10 @@ dpg-restore = { workspace = true }
 dpg-connect = { workspace = true }
 clap = { workspace = true }
 clap_complete = { workspace = true }
-directories = { workspace = true }
 tokio = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 dunce = { workspace = true }
-reqwest = { workspace = true }
 axum = { workspace = true }
 
 [dev-dependencies]

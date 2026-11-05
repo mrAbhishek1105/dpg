@@ -54,9 +54,10 @@ subtle = "2.6"
 tokio = { version = "1.43", features = ["full"] }
 axum = "0.8"
 tower-http = { version = "0.6", features = ["limit", "cors"] }
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream", "json"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls-native-roots", "stream", "json"] }
 bytes = "1.10"
 futures-util = "0.3"
+keyring = { version = "3.6", default-features = false }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

@@ -2,9 +2,11 @@
 
 > Keep coding with your AI agent; DPG swaps your secrets for placeholders and puts them back only in your local files.
 
-**Status: pre-alpha. Nothing is implemented yet.** This repository currently contains the
-project foundation (governance, CI) and the website. No installable
-build exists. The website's *Project status* page (source: `website/src/content/docs/status.md`) lists what is done and what is not.
+**Status: V1 implemented, pre-release (v0.0.1).** The Rust workspace builds and its test suite
+passes, but there is no installable release yet and the Claude Code integration has not been
+validated against a live Claude Code session. Build from source to try it. The website's *Project
+status* page (source: `website/src/content/docs/status.md`) lists what is tested, what is
+unverified, and the measured acceptance numbers.
 
 DPG is a local-first data protection layer that sits between AI coding agents and external AI
 services. It detects secrets and confidential terms, replaces them with placeholders before the
@@ -15,12 +17,12 @@ project.
 
 | Capability | Route | Status |
 |---|---|---|
-| Mask secrets in what Claude Code reads (tool output) | Claude Code `PostToolUse` hook | Planned |
-| Restore real values in Claude Code `Write` / `Edit` inside the project | Claude Code `PreToolUse` hook | Planned |
-| Mask outbound requests and restore streamed replies | Local proxy on `127.0.0.1` (Anthropic / OpenAI formats) | Planned |
-| `dpg inspect`, `sanitize`, `ignore`, `forget`, `install`, `doctor` | CLI | Planned |
-| Indian identifiers (Aadhaar, PAN, GSTIN, UPI ID) | Detection | Planned |
-| Custom confidential terms per project | Detection | Planned |
+| Mask secrets in what Claude Code reads (tool output) | Claude Code `PostToolUse` hook | Tested |
+| Restore real values in Claude Code `Write` / `Edit` inside the project | Claude Code `PreToolUse` hook | Tested |
+| Mask outbound requests and restore streamed replies | Local proxy on `127.0.0.1` (Anthropic / OpenAI formats) | Tested (mock upstream) |
+| `dpg inspect`, `sanitize`, `ignore`, `forget`, `install`, `doctor` | CLI | Tested |
+| Indian identifiers (Aadhaar, PAN, GSTIN, UPI ID) | Detection | Tested |
+| Custom confidential terms per project | Detection | Tested |
 
 ## What DPG does **not** protect
 
@@ -36,13 +38,13 @@ These limits are permanent design facts or unverified platform behaviour, not bu
 ## Repository layout
 
 ```text
-apps/dpg/            single binary: CLI, `dpg hook`, `dpg proxy`      (planned)
-crates/dpg-core      request lifecycle, context, fail-closed           (planned)
-crates/dpg-detect    detection rules and engine                        (planned)
-crates/dpg-policy    mask / block / warn / allow decisions             (planned)
-crates/dpg-protect   placeholders and encrypted mapping store          (planned)
-crates/dpg-restore   restore guard and path guard                      (planned)
-crates/dpg-connect   Claude Code hook adapter, local proxy, installer  (planned)
+apps/dpg/            single binary: CLI, `dpg hook`, `dpg proxy`
+crates/dpg-core      request lifecycle, context, fail-closed
+crates/dpg-detect    detection rules and engine
+crates/dpg-policy    mask / block / warn / allow decisions
+crates/dpg-protect   placeholders and encrypted mapping store
+crates/dpg-restore   restore guard and path guard
+crates/dpg-connect   Claude Code hook adapter, local proxy, installer
 website/             public website and documentation portal (Astro Starlight)
 ```
 

@@ -3,8 +3,8 @@ title: Troubleshooting
 description: Planned diagnostics and common situations.
 ---
 
-:::caution[Planned behaviour]
-Error codes and messages are part of the V1 specification.
+:::caution[Pre-release]
+Error codes are stable for V1; messages may still change before the first release.
 :::
 
 Start with:

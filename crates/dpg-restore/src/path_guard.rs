@@ -14,10 +14,15 @@ pub struct PathGuard {
 
 impl PathGuard {
     /// Creates a new `PathGuard` anchored at the canonical project root.
+    ///
+    /// Fails closed with `DPG-V004` if the root cannot be canonicalized: a guard
+    /// anchored at an unresolved path could not prove containment.
     pub fn new(project_root: &Path) -> Result<Self, DpgError> {
-        let canonical_root = dunce::canonicalize(project_root)
-            .or_else(|_| project_root.canonicalize())
-            .unwrap_or_else(|_| project_root.to_path_buf());
+        let canonical_root =
+            dunce::canonicalize(project_root).map_err(|_| DpgError::PathValidation {
+                code: ErrorCode::V004,
+                detail: SafeDetail::from_static("Project root cannot be canonicalized"),
+            })?;
 
         Ok(Self {
             root: canonical_root,
@@ -35,6 +40,15 @@ impl PathGuard {
     }
 
     /// Validates candidate path using an optional current working directory.
+    ///
+    /// Algorithm (fails closed at every step):
+    /// 1. reject NUL bytes, Windows device/verbatim namespaces, and any `.`/`..`
+    ///    component anywhere in the candidate (lexically, before touching the FS);
+    /// 2. split into the longest ancestor that exists *without following a final
+    ///    link* (`symlink_metadata`) and the non-existent remainder;
+    /// 3. canonicalize that ancestor (following symlinks); failure denies;
+    /// 4. re-join the remainder and require containment in the canonical root;
+    /// 5. deny any `.git` component below the root.
     pub fn check_with_cwd(
         &self,
         candidate: &Path,
@@ -42,12 +56,27 @@ impl PathGuard {
     ) -> Result<PathBuf, DpgError> {
         let candidate_str = candidate.to_string_lossy();
 
-        // 1. Reject NUL bytes
+        // 1a. Reject NUL bytes
         if candidate_str.contains('\0') {
             return Err(DpgError::PathValidation {
                 code: ErrorCode::V004,
                 detail: SafeDetail::from_static("Path contains NUL byte"),
             });
+        }
+
+        // 1b. Reject Windows device and verbatim namespaces
+        if cfg!(windows) {
+            let s = candidate_str.as_ref();
+            if s.starts_with(r"\\.\")
+                || s.starts_with(r"\\?\")
+                || s.starts_with("//./")
+                || s.starts_with("//?/")
+            {
+                return Err(DpgError::PathValidation {
+                    code: ErrorCode::V001,
+                    detail: SafeDetail::from_static("Device paths are forbidden"),
+                });
+            }
         }
 
         // 2. Resolve initial path p
@@ -59,127 +88,74 @@ impl PathGuard {
             self.root.join(candidate)
         };
 
-        // 3. Reject Windows device namespaces unless canonicalizable inside root
-        if cfg!(windows) {
-            let s = candidate_str.as_ref();
-            if s.starts_with(r"\\.\") {
-                return Err(DpgError::PathValidation {
-                    code: ErrorCode::V001,
-                    detail: SafeDetail::from_static("Device paths are forbidden"),
-                });
-            }
+        // 1c. Lexically reject traversal components anywhere. Agents send plain
+        // absolute paths; `..` has no legitimate use here and resolving it against
+        // non-existent directories is OS-dependent (this was a containment bypass).
+        if p.components()
+            .any(|c| matches!(c, Component::ParentDir | Component::CurDir))
+        {
+            return Err(DpgError::PathValidation {
+                code: ErrorCode::V001,
+                detail: SafeDetail::from_static("Path traversal components are forbidden"),
+            });
         }
 
-        // 4. Split p into longest existing ancestor A and remainder components R
+        // 3. Split p into the longest existing ancestor A (lstat, so a dangling
+        // symlink counts as existing and is then rejected by canonicalize) and remainder R.
         let mut ancestor = p.clone();
         let mut remainder_components = Vec::new();
-        let mut traversed_symlink = false;
-
-        while !ancestor.exists() {
-            if let Some(file_name) = ancestor.file_name() {
-                remainder_components.push(file_name.to_os_string());
-                if let Some(parent) = ancestor.parent() {
-                    ancestor = parent.to_path_buf();
-                } else {
-                    return Err(DpgError::PathValidation {
-                        code: ErrorCode::V001,
-                        detail: SafeDetail::from_static("Path outside project root"),
-                    });
-                }
-            } else {
-                break;
-            }
+        while std::fs::symlink_metadata(&ancestor).is_err() {
+            let (Some(file_name), Some(parent)) = (ancestor.file_name(), ancestor.parent()) else {
+                return Err(DpgError::PathValidation {
+                    code: ErrorCode::V001,
+                    detail: SafeDetail::from_static("Path has no existing ancestor"),
+                });
+            };
+            remainder_components.push(file_name.to_os_string());
+            ancestor = parent.to_path_buf();
         }
         remainder_components.reverse();
 
-        // Check if any ancestor along p was a symlink
-        {
-            let mut check_ancestor = ancestor.clone();
-            while check_ancestor.starts_with(&self.root) && check_ancestor != self.root {
-                if check_ancestor.is_symlink() {
-                    traversed_symlink = true;
-                    break;
-                }
-                if let Some(parent) = check_ancestor.parent() {
-                    check_ancestor = parent.to_path_buf();
-                } else {
-                    break;
-                }
-            }
-        }
+        // 4. Canonicalize ancestor A (following symlinks). Failure (dangling symlink,
+        // permission error) denies: containment cannot be proven.
+        let lexically_inside = is_path_within(&ancestor, &self.root);
+        let Ok(c_a) = dunce::canonicalize(&ancestor) else {
+            return Err(DpgError::PathValidation {
+                code: ErrorCode::V003,
+                detail: SafeDetail::from_static("Path component cannot be resolved"),
+            });
+        };
 
-        // 5. Reject if any component in remainder R is "..", ".", or empty
-        for comp in &remainder_components {
-            let s = comp.to_string_lossy();
-            if s == ".." || s == "." || s.is_empty() {
-                return Err(DpgError::PathValidation {
-                    code: ErrorCode::V001,
-                    detail: SafeDetail::from_static("Path component traversal outside root"),
-                });
-            }
-        }
-
-        // 6. Canonicalize ancestor A (following symlinks)
-        let c_a = dunce::canonicalize(&ancestor)
-            .or_else(|_| ancestor.canonicalize())
-            .unwrap_or(ancestor);
-
-        // 7. Join remainder R
+        // 5. Join remainder R
         let mut target = c_a;
         for comp in remainder_components {
             target.push(comp);
         }
 
-        // Normalize target using dunce::simplified where possible
-        let simplified_target = dunce::simplified(&target).to_path_buf();
-
-        // 8. Check containment in self.root
-        if !is_path_within(&simplified_target, &self.root) {
-            if traversed_symlink {
-                return Err(DpgError::PathValidation {
+        // 6. Check containment in self.root
+        if !is_path_within(&target, &self.root) {
+            return Err(if lexically_inside {
+                DpgError::PathValidation {
                     code: ErrorCode::V003,
                     detail: SafeDetail::from_static("Symlink resolves outside project root"),
-                });
+                }
             } else {
-                return Err(DpgError::PathValidation {
+                DpgError::PathValidation {
                     code: ErrorCode::V001,
                     detail: SafeDetail::from_static("Path outside project root"),
-                });
-            }
+                }
+            });
         }
 
-        // 9. Reject any component relative to root equal to ".git" (case-insensitive)
-        if contains_git_component(&simplified_target, &self.root) {
+        // 7. Reject any component relative to root equal to ".git" (case-insensitive)
+        if contains_git_component(&target, &self.root) {
             return Err(DpgError::PathValidation {
                 code: ErrorCode::V002,
                 detail: SafeDetail::from_static("Target path enters .git directory"),
             });
         }
 
-        // 10. If target exists and is a symlink, check its canonical destination
-        if simplified_target.is_symlink() {
-            let canon = dunce::canonicalize(&simplified_target)
-                .or_else(|_| simplified_target.canonicalize());
-
-            match canon {
-                Ok(resolved) => {
-                    if !is_path_within(&resolved, &self.root) {
-                        return Err(DpgError::PathValidation {
-                            code: ErrorCode::V003,
-                            detail: SafeDetail::from_static("Symlink target resolves outside root"),
-                        });
-                    }
-                }
-                Err(_) => {
-                    return Err(DpgError::PathValidation {
-                        code: ErrorCode::V003,
-                        detail: SafeDetail::from_static("Broken symlink cannot be verified"),
-                    });
-                }
-            }
-        }
-
-        Ok(simplified_target)
+        Ok(target)
     }
 }
 
@@ -440,5 +416,49 @@ mod tests {
                 .expect_err("PG-04: Symlink file escape must be denied");
             assert_eq!(err.code(), ErrorCode::V003);
         }
+    }
+
+    #[test]
+    fn test_sr_pg_10_dotdot_through_missing_dir_denied() {
+        // Regression: `<root>/missing/../../x` used to pass on Linux/macOS because the
+        // non-existent ancestor kept its `..` and containment was a prefix compare.
+        let temp = tempfile::tempdir().expect("tempdir");
+        let guard = PathGuard::new(temp.path()).expect("guard init");
+        let escape = guard
+            .root()
+            .join("missing")
+            .join("..")
+            .join("..")
+            .join("escaped.txt");
+        let err = guard.check(&escape).expect_err("must deny");
+        assert_eq!(err.code(), ErrorCode::V001);
+
+        // Relative `..` that would stay inside the root is still refused.
+        let err = guard
+            .check(Path::new("sub/../file.txt"))
+            .expect_err("`..` components must be denied");
+        assert_eq!(err.code(), ErrorCode::V001);
+    }
+
+    #[test]
+    fn test_sr_pg_11_unresolvable_root_fails_closed() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let err = PathGuard::new(&temp.path().join("does-not-exist")).expect_err("must fail");
+        assert_eq!(err.code(), ErrorCode::V004);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_sr_pg_12_dangling_symlink_in_middle_denied() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let root = temp.path().join("project");
+        std::fs::create_dir_all(&root).expect("root");
+        let outside = temp.path().join("outside-not-yet-created");
+        std::os::unix::fs::symlink(&outside, root.join("dlink")).expect("symlink");
+        let guard = PathGuard::new(&root).expect("guard init");
+        let err = guard
+            .check(&root.join("dlink").join("file.txt"))
+            .expect_err("dangling symlink must deny");
+        assert_eq!(err.code(), ErrorCode::V003);
     }
 }

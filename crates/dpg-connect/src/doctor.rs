@@ -72,6 +72,15 @@ impl DoctorReport {
 
 /// Executes all system diagnostic checks.
 pub fn run_doctor(custom_settings_dir: Option<&Path>) -> Result<DoctorReport, DpgError> {
+    run_doctor_with(custom_settings_dir, None)
+}
+
+/// Runs diagnostics with explicit runtime options (data dir, config); `None` uses defaults
+/// for the current directory.
+pub fn run_doctor_with(
+    custom_settings_dir: Option<&Path>,
+    runtime_opts: Option<&crate::runtime::RuntimeOptions>,
+) -> Result<DoctorReport, DpgError> {
     let mut items = Vec::new();
 
     // 1. Binary presence check
@@ -158,7 +167,10 @@ pub fn run_doctor(custom_settings_dir: Option<&Path>) -> Result<DoctorReport, Dp
         }
     }
 
-    let all_passed = items.iter().all(|i| i.status == CheckStatus::Pass);
+    // 5. Full runtime: config, key backend, mapping store, project identity, self-test
+    check_runtime(&mut items, runtime_opts);
+
+    let all_passed = items.iter().all(|i| i.status != CheckStatus::Fail);
 
     Ok(DoctorReport { items, all_passed })
 }
@@ -237,6 +249,126 @@ fn default_store_dir() -> Option<PathBuf> {
     directories::ProjectDirs::from("com", "dpg", "dpg").map(|d| d.data_dir().to_path_buf())
 }
 
+fn check_runtime(
+    items: &mut Vec<DiagnosticItem>,
+    runtime_opts: Option<&crate::runtime::RuntimeOptions>,
+) {
+    use crate::runtime::{Runtime, RuntimeOptions};
+    use dpg_core::types::{ProtectOutcome, Route};
+
+    let default_opts;
+    let opts = match runtime_opts {
+        Some(o) => o,
+        None => {
+            let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+            default_opts = RuntimeOptions::for_cwd(cwd);
+            &default_opts
+        }
+    };
+    let rt = match Runtime::build(opts) {
+        Ok(rt) => rt,
+        Err(e) => {
+            items.push(DiagnosticItem {
+                name: "Runtime".to_string(),
+                status: CheckStatus::Fail,
+                message: format!(
+                    "Cannot initialise DPG [{}]: {e}. Hooks will fail closed (tool output withheld, prompts blocked).",
+                    e.code()
+                ),
+            });
+            return;
+        }
+    };
+
+    items.push(DiagnosticItem {
+        name: "Configuration".to_string(),
+        status: if rt.warnings.is_empty() {
+            CheckStatus::Pass
+        } else {
+            CheckStatus::Warn
+        },
+        message: if rt.warnings.is_empty() {
+            format!(
+                "Loaded ({} custom term(s), {} custom rule(s))",
+                rt.config.terms.values.len(),
+                rt.config.rules.len()
+            )
+        } else {
+            rt.warnings
+                .iter()
+                .map(|w| format!("{}: {}", w.key, w.message))
+                .collect::<Vec<_>>()
+                .join("; ")
+        },
+    });
+
+    items.push(match rt.key_backend {
+        dpg_protect::key::KeyBackend::Keychain => DiagnosticItem {
+            name: "Master Key".to_string(),
+            status: CheckStatus::Pass,
+            message: "Stored in the OS keychain".to_string(),
+        },
+        dpg_protect::key::KeyBackend::File => DiagnosticItem {
+            name: "Master Key".to_string(),
+            status: CheckStatus::Warn,
+            message: format!(
+                "Stored in an owner-only file in {} (no OS keychain backend on this platform/config)",
+                crate::runtime::data_dir().display()
+            ),
+        },
+    });
+
+    items.push(match rt.store_error {
+        None => DiagnosticItem {
+            name: "Mapping Store".to_string(),
+            status: CheckStatus::Pass,
+            message: "Opened and key verified".to_string(),
+        },
+        Some(ref e) => DiagnosticItem {
+            name: "Mapping Store".to_string(),
+            status: CheckStatus::Fail,
+            message: format!(
+                "Unavailable [{}]: masking uses ephemeral placeholders and restoration is denied",
+                e.code()
+            ),
+        },
+    });
+
+    items.push(DiagnosticItem {
+        name: "Project".to_string(),
+        status: CheckStatus::Pass,
+        message: format!("{} (id {})", rt.project.root.display(), rt.project.id),
+    });
+
+    // Self-test: a synthetic (non-functional) AWS-style key must be masked.
+    let probe = format!("aws_access_key_id = AKIA{}", "Q7ZT4M2XK9LBN3VD");
+    let ctx = rt.context(
+        Route::Cli,
+        "doctor",
+        std::time::Instant::now() + std::time::Duration::from_secs(5),
+    );
+    let ok = match rt.engine.protect(&ctx, &probe) {
+        Ok(ProtectOutcome::Allowed { text, report }) => {
+            report.masked > 0 && !text.contains("AKIAQ7ZT4M2XK9LBN3VD")
+        }
+        Ok(ProtectOutcome::Blocked { .. }) => true,
+        Err(_) => false,
+    };
+    items.push(DiagnosticItem {
+        name: "Detection Self-Test".to_string(),
+        status: if ok {
+            CheckStatus::Pass
+        } else {
+            CheckStatus::Fail
+        },
+        message: if ok {
+            "Synthetic credential detected and masked".to_string()
+        } else {
+            "Synthetic credential was NOT masked".to_string()
+        },
+    });
+}
+
 #[cfg(test)]
 mod tests {
     #![allow(clippy::unwrap_used, clippy::expect_used)]
@@ -245,7 +377,31 @@ mod tests {
     #[test]
     fn test_doctor_smoke_run() {
         let temp = tempfile::tempdir().expect("tempdir");
-        let report = run_doctor(Some(temp.path())).expect("doctor run");
+        let data = temp.path().join("data");
+        std::fs::create_dir_all(&data).unwrap();
+        std::fs::write(
+            data.join("g.toml"),
+            "[storage]
+key_backend = \"file\"
+",
+        )
+        .unwrap();
+        let opts = crate::runtime::RuntimeOptions {
+            cwd: temp.path().to_path_buf(),
+            data_dir: data.clone(),
+            global_config: Some(data.join("g.toml")),
+        };
+        let report = run_doctor_with(Some(temp.path()), Some(&opts)).expect("doctor run");
+        let cli = report.format_cli();
+        assert!(cli.contains("Detection Self-Test"), "{cli}");
+        assert!(cli.contains("Mapping Store"), "{cli}");
+        assert!(
+            report
+                .items
+                .iter()
+                .all(|i| i.name != "Detection Self-Test" || i.status == CheckStatus::Pass),
+            "{cli}"
+        );
 
         assert!(!report.items.is_empty());
         let cli_output = report.format_cli();

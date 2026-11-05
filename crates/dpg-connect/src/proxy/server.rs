@@ -12,7 +12,7 @@ use axum::http::{HeaderMap, Request, Response, StatusCode};
 use axum::response::IntoResponse;
 use axum::routing::any;
 use axum::Router;
-use dpg_core::context::{ProjectContext, ProjectId, RequestContext, SessionId};
+use dpg_core::context::{ProjectContext, RequestContext, SessionId};
 use dpg_core::engine::Engine;
 use dpg_core::error::{DpgError, ErrorCode, SafeDetail};
 use dpg_core::types::Route;
@@ -24,6 +24,7 @@ use tower_http::limit::RequestBodyLimitLayer;
 use crate::proxy::guard::{match_proxy_route, validate_request_headers, validate_token};
 use crate::proxy::mask::mask_request_body;
 use crate::proxy::restore::restore_response_body;
+use crate::proxy::sse::SseStreamRestorer;
 
 /// 32 MiB maximum request body limit (PX-07).
 pub const MAX_BODY_LIMIT_BYTES: usize = 32 * 1024 * 1024;
@@ -78,6 +79,26 @@ pub struct ProxyState {
     pub config: Arc<ProxyConfig>,
     /// Upstream HTTP client.
     pub client: reqwest::Client,
+    /// Project whose mappings this proxy uses (resolved from the launch directory).
+    pub project: ProjectContext,
+}
+
+/// Builds the upstream HTTP client: bounded connect time and a per-read idle timeout
+/// (no total timeout, so long streaming responses are not cut off).
+pub fn build_upstream_client(
+    connect_timeout: Duration,
+    read_timeout: Duration,
+) -> Result<reqwest::Client, DpgError> {
+    reqwest::Client::builder()
+        .connect_timeout(connect_timeout)
+        .read_timeout(read_timeout)
+        .https_only(false)
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .map_err(|_| DpgError::Configuration {
+            code: ErrorCode::C001,
+            detail: SafeDetail::from_static("Failed to build upstream HTTP client"),
+        })
 }
 
 /// Validates that the bind address is strictly loopback (PX-01).
@@ -85,7 +106,7 @@ pub fn validate_bind_address(addr: &SocketAddr) -> Result<(), DpgError> {
     let ip = addr.ip();
     if !ip.is_loopback() {
         return Err(DpgError::Configuration {
-            code: ErrorCode::C002,
+            code: ErrorCode::C003,
             detail: SafeDetail::from_static(
                 "Proxy must bind to 127.0.0.1 only; non-loopback addresses are refused",
             ),
@@ -128,10 +149,7 @@ async fn handle_proxy_request(
 
     // 4. Construct request context for masking
     let ctx = RequestContext {
-        project: ProjectContext {
-            root: std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
-            id: ProjectId::new("proxy-default".to_string()),
-        },
+        project: state.project.clone(),
         session: SessionId::new("proxy-session".to_string()),
         route: Route::Proxy,
         deadline: std::time::Instant::now() + Duration::from_secs(60),
@@ -190,16 +208,42 @@ async fn handle_proxy_request(
         }
     };
 
-    let resp_status = StatusCode::from_u16(upstream_resp.status().as_u16())
-        .unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
+    let resp_status =
+        StatusCode::from_u16(upstream_resp.status().as_u16()).unwrap_or(StatusCode::BAD_GATEWAY);
+    let content_type = upstream_resp
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/json")
+        .to_string();
 
-    // Pass through non-200 responses verbatim (H-07)
+    // Pass through non-2xx responses verbatim (H-07)
     if !resp_status.is_success() {
         let err_bytes = upstream_resp.bytes().await.unwrap_or_default();
-        return (resp_status, err_bytes).into_response();
+        return (
+            resp_status,
+            [(axum::http::header::CONTENT_TYPE, content_type)],
+            err_bytes,
+        )
+            .into_response();
     }
 
-    // 7. Response placeholder restoration
+    // 7a. Streaming (SSE): restore text deltas incrementally (PX-09, PX-10)
+    if content_type.starts_with("text/event-stream") {
+        let restorer = match (state.config.restore_in_responses, state.store.clone()) {
+            (true, Some(store)) => Some(SseStreamRestorer::new(store, ctx.project.id.clone())),
+            _ => None,
+        };
+        let stream = sse_body_stream(upstream_resp, restorer);
+        return Response::builder()
+            .status(resp_status)
+            .header(axum::http::header::CONTENT_TYPE, content_type)
+            .header(axum::http::header::CACHE_CONTROL, "no-cache")
+            .body(Body::from_stream(stream))
+            .unwrap_or_else(|_| StatusCode::BAD_GATEWAY.into_response());
+    }
+
+    // 7b. Non-streaming response placeholder restoration
     let resp_bytes = match upstream_resp.bytes().await {
         Ok(b) => b,
         Err(_) => return StatusCode::BAD_GATEWAY.into_response(),
@@ -212,7 +256,7 @@ async fn handle_proxy_request(
                 if let Ok(restored_bytes) = serde_json::to_vec(&resp_val) {
                     return (
                         resp_status,
-                        [(axum::http::header::CONTENT_TYPE, "application/json")],
+                        [(axum::http::header::CONTENT_TYPE, content_type)],
                         restored_bytes,
                     )
                         .into_response();
@@ -223,10 +267,51 @@ async fn handle_proxy_request(
 
     (
         resp_status,
-        [(axum::http::header::CONTENT_TYPE, "application/json")],
+        [(axum::http::header::CONTENT_TYPE, content_type)],
         resp_bytes,
     )
         .into_response()
+}
+
+/// Adapts the upstream byte stream through the SSE restorer (or verbatim without one).
+fn sse_body_stream(
+    upstream: reqwest::Response,
+    restorer: Option<SseStreamRestorer>,
+) -> impl futures_util::Stream<Item = Result<bytes::Bytes, std::io::Error>> + Send {
+    use futures_util::StreamExt;
+    let bytes = upstream.bytes_stream();
+    futures_util::stream::unfold(
+        (bytes, restorer, false),
+        |(mut bytes, mut restorer, done)| async move {
+            if done {
+                return None;
+            }
+            loop {
+                match bytes.next().await {
+                    Some(Ok(chunk)) => {
+                        let out = match restorer.as_mut() {
+                            Some(r) => r.push(&chunk),
+                            None => chunk.to_vec(),
+                        };
+                        if !out.is_empty() {
+                            return Some((Ok(bytes::Bytes::from(out)), (bytes, restorer, false)));
+                        }
+                    }
+                    Some(Err(_)) => {
+                        // Upstream broke mid-stream: end the response with an error.
+                        return Some((
+                            Err(std::io::Error::other("upstream stream error")),
+                            (bytes, restorer, true),
+                        ));
+                    }
+                    None => {
+                        let tail = restorer.as_mut().map(|r| r.finish()).unwrap_or_default();
+                        return Some((Ok(bytes::Bytes::from(tail)), (bytes, restorer, true)));
+                    }
+                }
+            }
+        },
+    )
 }
 
 fn copy_forward_headers(src: &HeaderMap, dst: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
@@ -251,12 +336,13 @@ fn copy_forward_headers(src: &HeaderMap, dst: reqwest::RequestBuilder) -> reqwes
 mod tests {
     #![allow(clippy::unwrap_used, clippy::expect_used)]
     use super::*;
+    use dpg_core::context::ProjectId;
 
     #[test]
     fn test_sr_px_01_refuse_non_loopback_bind() {
         let non_loopback = "0.0.0.0:8787".parse().unwrap();
         let err = validate_bind_address(&non_loopback).expect_err("PX-01: Must refuse 0.0.0.0");
-        assert_eq!(err.code(), ErrorCode::C002);
+        assert_eq!(err.code(), ErrorCode::C003);
 
         let public_ip = "192.168.1.100:8787".parse().unwrap();
         assert!(validate_bind_address(&public_ip).is_err());
@@ -355,6 +441,10 @@ mod tests {
             store: Some(store),
             config: proxy_config,
             client: http_client.clone(),
+            project: ProjectContext {
+                root: tmp.path().to_path_buf(),
+                id: ProjectId::new("proxy-test".to_string()),
+            },
         };
 
         let proxy_app = build_proxy_router(state);
@@ -395,6 +485,124 @@ mod tests {
             format!("Echo: {}", secret),
             "Proxy response must restore original secret"
         );
+
+        upstream_server.abort();
+        proxy_server.abort();
+    }
+
+    #[tokio::test]
+    async fn test_px_09_streaming_sse_masked_upstream_restored_downstream() {
+        use axum::routing::post;
+        use axum::Json;
+
+        let mut rng = dpg_testgen::create_rng(4242);
+        let secret = dpg_testgen::gen_openai_token(&mut rng);
+
+        // Mock upstream: streams the (masked) user content back in 3-byte text deltas.
+        let mock_upstream = axum::Router::new().route(
+            "/v1/messages",
+            post(move |Json(body): Json<serde_json::Value>| async move {
+                let text = body["messages"][0]["content"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .to_string();
+                assert!(!text.contains("sk-"), "upstream must never see the secret");
+                let mut sse = String::from(
+                    "event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n\n",
+                );
+                let chars: Vec<char> = text.chars().collect();
+                for piece in chars.chunks(3) {
+                    let piece: String = piece.iter().collect();
+                    sse.push_str(&format!(
+                        "event: content_block_delta\ndata: {}\n\n",
+                        serde_json::json!({"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":piece}})
+                    ));
+                }
+                sse.push_str("event: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\n");
+                sse.push_str("event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n");
+                (
+                    [(axum::http::header::CONTENT_TYPE, "text/event-stream")],
+                    sse,
+                )
+            }),
+        );
+        let upstream_listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let upstream_addr = upstream_listener.local_addr().unwrap();
+        let upstream_server = tokio::spawn(async move {
+            let _ = axum::serve(upstream_listener, mock_upstream).await;
+        });
+
+        let tmp = tempfile::tempdir().unwrap();
+        let key_prov = dpg_protect::key::FixedKeyProvider::new([5u8; 32]);
+        let store = Arc::new(
+            dpg_protect::store::MappingStore::open(&tmp.path().join("map.db"), &key_prov).unwrap(),
+        );
+        let engine = Arc::new(dpg_core::engine::Engine::new(
+            Arc::new(dpg_detect::DpgDetector::new().unwrap()),
+            Arc::new(dpg_policy::DpgPolicy::default_policy()),
+            Arc::new(dpg_protect::DpgProtector::with_store(store.clone())),
+            Arc::new(dpg_restore::DpgRestorer::with_store(store.clone())),
+            Arc::new(dpg_core::config::Config::default()),
+            None,
+        ));
+        let token = "TOKEN765432109876543210987654321".to_string();
+        let proxy_listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let proxy_addr = proxy_listener.local_addr().unwrap();
+        let state = ProxyState {
+            engine,
+            store: Some(store),
+            config: Arc::new(ProxyConfig {
+                bind_addr: proxy_addr,
+                upstream_anthropic: format!("http://{}", upstream_addr),
+                upstream_openai: format!("http://{}", upstream_addr),
+                token: token.clone(),
+                restore_in_responses: true,
+            }),
+            client: build_upstream_client(Duration::from_secs(5), Duration::from_secs(30)).unwrap(),
+            project: ProjectContext {
+                root: tmp.path().to_path_buf(),
+                id: ProjectId::new("proxy-stream".to_string()),
+            },
+        };
+        let proxy_server = tokio::spawn(async move {
+            let _ = axum::serve(proxy_listener, build_proxy_router(state)).await;
+        });
+
+        let resp = reqwest::Client::new()
+            .post(format!(
+                "http://{}/t/{}/anthropic/v1/messages",
+                proxy_addr, token
+            ))
+            .json(&serde_json::json!({
+                "model": "m", "stream": true,
+                "messages": [{"role": "user", "content": secret.clone()}]
+            }))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert!(resp.headers()[reqwest::header::CONTENT_TYPE]
+            .to_str()
+            .unwrap()
+            .starts_with("text/event-stream"));
+        let body = resp.text().await.unwrap();
+        let mut text = String::new();
+        let mut saw_stop_after_text = false;
+        for block in body.split("\n\n").filter(|b| !b.trim().is_empty()) {
+            let data = block
+                .lines()
+                .find_map(|l| l.strip_prefix("data: "))
+                .unwrap();
+            let v: serde_json::Value = serde_json::from_str(data).unwrap();
+            if let Some(t) = v["delta"]["text"].as_str() {
+                assert!(!saw_stop_after_text, "no text after block stop");
+                text.push_str(t);
+            }
+            if v["type"] == "content_block_stop" {
+                saw_stop_after_text = true;
+            }
+        }
+        assert_eq!(text, secret, "streamed text restored exactly");
 
         upstream_server.abort();
         proxy_server.abort();

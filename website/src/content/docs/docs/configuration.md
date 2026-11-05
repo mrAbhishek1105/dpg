@@ -3,7 +3,7 @@ title: Configuration
 description: Global and project configuration, precedence, and what a project file may change.
 ---
 
-:::caution[Planned behaviour]
+:::caution[Pre-release]
 Keys and defaults below are the V1 specification.
 :::
 

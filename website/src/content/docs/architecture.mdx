@@ -29,7 +29,7 @@ modules (Rust crates) inside that one program, **not** separate services. There 
 | Engine | Rust, `regex` crate (linear-time matching) |
 | Hook adapter | same binary, `dpg hook` subcommand (JSON on stdin/stdout) |
 | Local proxy | Rust with `axum`, `tokio`, `reqwest`; bound to `127.0.0.1`; install token; Host and Origin checks |
-| Mapping store | SQLite with SQLCipher; key in the OS keychain |
+| Mapping store | SQLite with per-value AES-256-GCM; master key in the OS keychain (owner-only file on Linux) |
 | CLI | `clap`: `inspect`, `sanitize`, `ignore`, `forget`, `install`, `doctor` |
 
 See [How DPG works](/how-it-works/) for the read and write paths, and [Security & privacy](/security/) for the guards.

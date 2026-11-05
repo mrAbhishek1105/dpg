@@ -48,7 +48,8 @@ impl EntropyScanner {
     /// Compiles a new `EntropyScanner`.
     pub fn new() -> Result<Self, DpgError> {
         let re_token =
-            Regex::new(r"\b([A-Za-z0-9+/=_-]{20,})\b").map_err(|_| DpgError::Detection {
+            // `=` only as trailing base64 padding, so `KEY=value` is never one token.
+            Regex::new(r"\b([A-Za-z0-9+/_-]{20,}={0,2})").map_err(|_| DpgError::Detection {
                 code: ErrorCode::D001,
                 detail: SafeDetail::from_static("Failed to compile entropy token regex"),
             })?;
@@ -91,6 +92,26 @@ impl EntropyScanner {
             // Exclude UUIDs and lockfile hashes (DT-08)
             if self.is_safe_non_secret(token) {
                 continue;
+            }
+
+            // Exclude content digests: 40/64/128-hex after `sha1:`/`sha256:`/`sha512:`,
+            // `@sha256:` image refs, or a `commit ` prefix (git object ids).
+            if is_hex_string(token) && matches!(token.len(), 40 | 64 | 128) {
+                let before = &text[..mat.start()];
+                let ctx_start = before
+                    .char_indices()
+                    .rev()
+                    .nth(11)
+                    .map(|(i, _)| i)
+                    .unwrap_or(0);
+                let ctx = before[ctx_start..].to_ascii_lowercase();
+                if ctx.ends_with("sha1:")
+                    || ctx.ends_with("sha256:")
+                    || ctx.ends_with("sha512:")
+                    || ctx.ends_with("commit ")
+                {
+                    continue;
+                }
             }
 
             let entropy = shannon_entropy(token);

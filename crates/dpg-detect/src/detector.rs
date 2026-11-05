@@ -25,6 +25,41 @@ pub struct DpgDetector {
     entropy_scanner: EntropyScanner,
     terms_scanner: Option<TermsScanner>,
     max_scan_bytes: usize,
+    placeholder_re: regex::Regex,
+}
+
+/// Matches DPG's own placeholder tokens (`DPG_<CAT>_<8 Crockford base32>`).
+const PLACEHOLDER_PATTERN: &str =
+    r"DPG_(?:SECRET|PASS|USER|HOST|CONN|TERM|ID|PII)_[0-9A-HJKMNP-TV-Z]{8}";
+
+/// Digest algorithm names that appear as `name@sha256:...` in image references.
+const DIGEST_HANDLES: &[&str] = &["sha1", "sha224", "sha256", "sha384", "sha512", "md5"];
+
+/// Drops findings that are known non-secrets:
+/// * any finding overlapping one of DPG's own placeholders (re-masking a placeholder
+///   would map a placeholder to a placeholder and break exact restore);
+/// * documentation example credentials (AWS `...EXAMPLE`, `...EXAMPLEKEY`);
+/// * container digest references mistaken for payment handles (`app@sha256`).
+fn suppress(text: &str, f: &Finding, placeholders: &[(usize, usize)]) -> bool {
+    if placeholders
+        .iter()
+        .any(|&(s, e)| f.span.start < e && s < f.span.end)
+    {
+        return true;
+    }
+    let value = text.get(f.span.start..f.span.end).unwrap_or_default();
+    if value.ends_with("EXAMPLE") || value.contains("EXAMPLEKEY") {
+        return true;
+    }
+    if f.rule_id.as_str() == "dpg.generic-handle" {
+        if let Some((_, handle)) = value.rsplit_once('@') {
+            let h = handle.to_ascii_lowercase();
+            if DIGEST_HANDLES.contains(&h.as_str()) {
+                return true;
+            }
+        }
+    }
+    false
 }
 
 impl DpgDetector {
@@ -44,6 +79,12 @@ impl DpgDetector {
             entropy_scanner,
             terms_scanner: None,
             max_scan_bytes: DEFAULT_MAX_SCAN_BYTES,
+            placeholder_re: regex::Regex::new(PLACEHOLDER_PATTERN).map_err(|_| {
+                DpgError::Detection {
+                    code: ErrorCode::D001,
+                    detail: SafeDetail::from_static("Failed to compile placeholder pattern"),
+                }
+            })?,
         })
     }
 
@@ -51,6 +92,14 @@ impl DpgDetector {
     pub fn with_custom_terms(mut self, terms: &[String]) -> Result<Self, DpgError> {
         if !terms.is_empty() {
             self.terms_scanner = Some(TermsScanner::new(terms)?);
+        }
+        Ok(self)
+    }
+
+    /// Extends the detector with project-specific rules from `.dpg.toml` / global config.
+    pub fn with_project_rules(mut self, rules: Vec<crate::rules::Rule>) -> Result<Self, DpgError> {
+        if !rules.is_empty() {
+            self.ruleset = self.ruleset.with_project(&[], rules)?;
         }
         Ok(self)
     }
@@ -108,7 +157,15 @@ impl Detector for DpgDetector {
         let mut entropy_matches = self.entropy_scanner.scan(text);
         raw_findings.append(&mut entropy_matches);
 
-        // 7. Resolve overlaps by priority and length
+        // 7. Drop known non-secrets (own placeholders, doc examples, digests)
+        let placeholders: Vec<(usize, usize)> = self
+            .placeholder_re
+            .find_iter(text)
+            .map(|m| (m.start(), m.end()))
+            .collect();
+        raw_findings.retain(|f| !suppress(text, f, &placeholders));
+
+        // 8. Resolve overlaps by priority and length
         let resolved = resolve_overlaps(raw_findings);
 
         Ok(resolved)
@@ -175,5 +232,39 @@ mod tests {
             assert!(text_zwj.is_char_boundary(f.span.start));
             assert!(text_zwj.is_char_boundary(f.span.end));
         }
+    }
+
+    #[test]
+    fn test_own_placeholders_never_remasked_and_examples_suppressed() {
+        let detector = DpgDetector::new().expect("detector");
+        let ctx = mock_context();
+        for text in [
+            "password=DPG_PASS_ABCDEFGH\n",
+            "token: DPG_SECRET_0123ABCD\n",
+            "aws_access_key_id = AKIAIOSFODNN7EXAMPLE\n",
+            "aws_secret_access_key = wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY\n",
+            "image: ghcr.io/acme/app@sha256:0123abcd\n",
+            "API_KEY=your-api-key-here\n",
+        ] {
+            let findings = detector.scan(text, &ctx).expect("scan");
+            assert!(findings.is_empty(), "{text:?} -> {findings:?}");
+        }
+        // A masked connection string is not re-masked (no finding touches a placeholder).
+        let text =
+            "DATABASE_URL=postgres://DPG_USER_0123ABCD:DPG_PASS_ABCDEFGH@DPG_HOST_ZZZZ9999/db\n";
+        let first_ph = text.find("DPG_").unwrap_or(0);
+        let findings = detector.scan(text, &ctx).expect("scan");
+        assert!(
+            findings.iter().all(|f| f.span.end <= first_ph),
+            "{findings:?}"
+        );
+        // Real-looking values next to placeholders are still found.
+        let findings = detector
+            .scan(
+                "password=DPG_PASS_ABCDEFGH other=AKIAZ7Q3XK2LM4NP5RST\n",
+                &ctx,
+            )
+            .expect("scan");
+        assert_eq!(findings.len(), 1, "{findings:?}");
     }
 }

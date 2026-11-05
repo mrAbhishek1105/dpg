@@ -5,6 +5,16 @@ use assert_cmd::Command;
 use predicates::prelude::*;
 use std::fs;
 
+/// A `dpg` command isolated from the developer's real data dir and OS keychain.
+fn dpg_cmd() -> Command {
+    let data = std::env::temp_dir().join(format!("dpg-it-{}", std::process::id()));
+    let mut cmd = Command::cargo_bin("dpg").unwrap();
+    cmd.env("DPG_DATA_DIR", &data)
+        .env("DPG_STORAGE_BACKEND", "file")
+        .env("DPG_CONFIG", data.join("no-global-config.toml"));
+    cmd
+}
+
 #[test]
 fn integration_harness_smoke_test() {
     assert_eq!(dpg_core::version(), "0.0.1");
@@ -20,7 +30,7 @@ fn test_cli_inspect_no_leak_and_json() {
     fs::write(&file_path, format!("MY_KEY={}\n", secret)).unwrap();
 
     // 1. Default inspect: Must NEVER leak raw secret value
-    let mut cmd = Command::cargo_bin("dpg").unwrap();
+    let mut cmd = dpg_cmd();
     let assert = cmd.arg("inspect").arg(&file_path).assert().success();
 
     let stdout = String::from_utf8(assert.get_output().stdout.clone()).unwrap();
@@ -37,7 +47,7 @@ fn test_cli_inspect_no_leak_and_json() {
     assert!(stdout.contains("DPG Inspect - Found"));
 
     // 2. Inspect with --json: structured findings with redacted preview
-    let mut cmd_json = Command::cargo_bin("dpg").unwrap();
+    let mut cmd_json = dpg_cmd();
     let assert_json = cmd_json
         .arg("inspect")
         .arg(&file_path)
@@ -55,7 +65,7 @@ fn test_cli_inspect_no_leak_and_json() {
     assert_eq!(parsed.as_array().unwrap().len(), 1);
 
     // 3. Inspect with --show-values: emits warning to stderr and unredacted in stdout
-    let mut cmd_show = Command::cargo_bin("dpg").unwrap();
+    let mut cmd_show = dpg_cmd();
     let assert_show = cmd_show
         .arg("inspect")
         .arg(&file_path)
@@ -85,7 +95,7 @@ fn test_cli_sanitize_replaces_secret() {
     let file_path = tmp.path().join("config.env");
     fs::write(&file_path, format!("API_TOKEN={}\n", secret)).unwrap();
 
-    let mut cmd = Command::cargo_bin("dpg").unwrap();
+    let mut cmd = dpg_cmd();
     let assert = cmd
         .arg("sanitize")
         .arg(&file_path)
@@ -106,7 +116,7 @@ fn test_cli_sanitize_replaces_secret() {
 
 #[test]
 fn test_cli_doctor_runs_cleanly() {
-    let mut cmd = Command::cargo_bin("dpg").unwrap();
+    let mut cmd = dpg_cmd();
     let assert = cmd.arg("doctor").assert();
     let stdout = String::from_utf8(assert.get_output().stdout.clone()).unwrap();
     assert!(
@@ -118,18 +128,118 @@ fn test_cli_doctor_runs_cleanly() {
 #[test]
 fn test_cli_completions_generation() {
     for shell in ["bash", "zsh", "fish", "powershell"] {
-        let mut cmd = Command::cargo_bin("dpg").unwrap();
+        let mut cmd = dpg_cmd();
         cmd.arg("completions").arg(shell).assert().success();
     }
 }
 
 #[test]
 fn test_cli_install_claude_code_dry_run() {
-    let mut cmd = Command::cargo_bin("dpg").unwrap();
+    let mut cmd = dpg_cmd();
     cmd.arg("install")
         .arg("claude-code")
         .arg("--dry-run")
         .assert()
         .success()
         .stdout(predicate::str::contains("DPG: dry-run"));
+}
+
+/// End-to-end through the real binary: PostToolUse masks in one process, a later
+/// PreToolUse (separate process) restores the exact value for a Write inside the
+/// project, and denies the same Write outside the project.
+#[test]
+fn test_e2e_hook_mask_then_restore_across_processes() {
+    let mut rng = dpg_testgen::create_rng(777);
+    let secret = dpg_testgen::gen_aws_access_key(&mut rng);
+    let tmp = tempfile::tempdir().unwrap();
+    let proj = tmp.path().join("proj");
+    fs::create_dir_all(proj.join(".git")).unwrap();
+    let data = tmp.path().join("data");
+    let run = |input: serde_json::Value| -> serde_json::Value {
+        let out = Command::cargo_bin("dpg")
+            .unwrap()
+            .env("DPG_DATA_DIR", &data)
+            .env("DPG_STORAGE_BACKEND", "file")
+            .env("DPG_CONFIG", data.join("none.toml"))
+            .arg("hook")
+            .write_stdin(serde_json::to_vec(&input).unwrap())
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone();
+        serde_json::from_slice(&out).unwrap()
+    };
+
+    let post = run(serde_json::json!({
+        "session_id": "s", "cwd": proj, "hook_event_name": "PostToolUse",
+        "tool_name": "Bash", "tool_input": {"command": "cat .env"},
+        "tool_response": {"stdout": format!("AWS_ACCESS_KEY_ID={secret}\n"), "stderr": "", "interrupted": false, "isImage": false}
+    }));
+    let masked = post["hookSpecificOutput"]["updatedToolOutput"]["stdout"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert!(
+        !masked.contains(&secret),
+        "original must not reach the model"
+    );
+    assert!(masked.contains("DPG_"), "placeholder present: {masked}");
+    assert_eq!(
+        post["hookSpecificOutput"]["updatedToolOutput"]["interrupted"],
+        false
+    );
+
+    let pre = run(serde_json::json!({
+        "session_id": "s", "cwd": proj, "hook_event_name": "PreToolUse",
+        "tool_name": "Write",
+        "tool_input": {"file_path": proj.join(".env"), "content": masked}
+    }));
+    assert_eq!(pre["hookSpecificOutput"]["permissionDecision"], "allow");
+    assert_eq!(
+        pre["hookSpecificOutput"]["updatedInput"]["content"],
+        format!("AWS_ACCESS_KEY_ID={secret}\n")
+    );
+
+    let outside = tmp.path().join("outside.env");
+    let pre_out = run(serde_json::json!({
+        "session_id": "s", "cwd": proj, "hook_event_name": "PreToolUse",
+        "tool_name": "Write",
+        "tool_input": {"file_path": outside, "content": masked}
+    }));
+    assert_eq!(pre_out["hookSpecificOutput"]["permissionDecision"], "deny");
+    assert!(!outside.exists());
+}
+
+/// A broken project config must not open a hole: PostToolUse withholds output.
+#[test]
+fn test_e2e_hook_invalid_config_fails_closed() {
+    let tmp = tempfile::tempdir().unwrap();
+    let proj = tmp.path().join("proj");
+    fs::create_dir_all(proj.join(".git")).unwrap();
+    fs::write(proj.join(".dpg.toml"), "this is = = not toml").unwrap();
+    let data = tmp.path().join("data");
+    let input = serde_json::json!({
+        "session_id": "s", "cwd": proj, "hook_event_name": "PostToolUse",
+        "tool_name": "Bash", "tool_input": {"command": "env"},
+        "tool_response": {"stdout": "anything at all", "stderr": "", "interrupted": false, "isImage": false}
+    });
+    let out = Command::cargo_bin("dpg")
+        .unwrap()
+        .env("DPG_DATA_DIR", &data)
+        .env("DPG_STORAGE_BACKEND", "file")
+        .env("DPG_CONFIG", data.join("none.toml"))
+        .arg("hook")
+        .write_stdin(serde_json::to_vec(&input).unwrap())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let v: serde_json::Value = serde_json::from_slice(&out).unwrap();
+    let stdout = v["hookSpecificOutput"]["updatedToolOutput"]["stdout"]
+        .as_str()
+        .unwrap();
+    assert!(stdout.contains("withheld"), "{stdout}");
+    assert!(stdout.contains("DPG-C001"), "{stdout}");
 }

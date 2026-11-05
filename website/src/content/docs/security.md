@@ -16,8 +16,14 @@ crash upload and no update check in V1. The only outbound traffic is the proxy f
 
 ## Mapping storage and keys
 
-- Placeholder ↔ value mappings are stored per project in a local SQLite database encrypted with SQLCipher.
-- The 256-bit key is generated on first run and stored in your OS keychain (macOS Keychain, Windows Credential Manager, Linux Secret Service).
+- Placeholder ↔ value mappings are stored per project in a local SQLite database. Every original
+  value is encrypted with AES-256-GCM, bound to its project and placeholder (so a ciphertext cannot be
+  moved to another row), and looked up through a keyed HMAC index. Placeholders, categories and
+  timestamps are stored unencrypted; they reveal nothing about the values.
+- The 256-bit master key is generated on first run and stored in your OS keychain (Windows Credential
+  Manager, macOS Keychain). On Linux, v1 stores it in an owner-only (`0600`) file in the DPG data
+  directory, and `dpg doctor` reports this.
+- Opening the store with the wrong key fails immediately and leaves the database untouched.
 - Mappings expire 30 days after last use; `dpg forget` deletes them on demand.
 - If the key is missing, DPG never silently creates a new database over the old one.
 

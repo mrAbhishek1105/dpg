@@ -28,6 +28,9 @@ reqwest = { workspace = true }
 bytes = { workspace = true }
 futures-util = { workspace = true }
 subtle = { workspace = true }
+hmac = { workspace = true }
+sha2 = { workspace = true }
+zeroize = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }

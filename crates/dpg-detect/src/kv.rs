@@ -182,6 +182,23 @@ pub fn is_dummy_or_placeholder(val: &str) -> bool {
         return true;
     }
 
+    // Instructional fill-ins: "your-api-key-here", "<your token>", "insert_key_here",
+    // "example-secret", "xxxxxxxx".
+    let fill_in =
+        (lower.starts_with("your") || lower.starts_with("insert") || lower.starts_with("enter"))
+            && ["key", "token", "secret", "pass", "here"]
+                .iter()
+                .any(|w| lower.contains(w));
+    if fill_in
+        || lower.ends_with("-here")
+        || lower.ends_with("_here")
+        || lower.starts_with("example")
+        || lower.starts_with("dummy")
+        || lower.chars().all(|c| c == 'x' || c == '*' || c == '.')
+    {
+        return true;
+    }
+
     if trimmed.len() < 3 {
         return true;
     }

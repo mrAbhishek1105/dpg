@@ -253,7 +253,22 @@ fn test_pg_traversal_and_git_directory_denied() {
 /// CF-03: Doctor report must never print secrets, passwords, or raw keys.
 #[test]
 fn test_cf_03_doctor_output_contains_zero_secrets() {
-    let report = dpg_connect::run_doctor(None).unwrap();
+    let tmp = tempfile::tempdir().unwrap();
+    let data = tmp.path().join("data");
+    fs::create_dir_all(&data).unwrap();
+    fs::write(
+        data.join("g.toml"),
+        "[storage]
+key_backend = \"file\"
+",
+    )
+    .unwrap();
+    let opts = dpg_connect::RuntimeOptions {
+        cwd: tmp.path().to_path_buf(),
+        data_dir: data.clone(),
+        global_config: Some(data.join("g.toml")),
+    };
+    let report = dpg_connect::run_doctor_with(Some(tmp.path()), Some(&opts)).unwrap();
     let formatted = report.format_cli();
 
     // Check for sensitive patterns

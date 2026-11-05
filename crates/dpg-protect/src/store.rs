@@ -20,6 +20,16 @@ use crate::placeholder::{generate_csprng, PlaceholderCat};
 
 type HmacSha256 = Hmac<Sha256>;
 
+mod subtle_eq {
+    /// Constant-time byte-slice equality.
+    pub fn ct_eq(a: &[u8], b: &[u8]) -> bool {
+        if a.len() != b.len() {
+            return false;
+        }
+        a.iter().zip(b).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
+    }
+}
+
 fn current_timestamp() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -44,6 +54,18 @@ pub struct MappingStore {
     conn: Mutex<Connection>,
     k_enc: Zeroizing<[u8; 32]>,
     k_index: Zeroizing<[u8; 32]>,
+    k_ignore: Zeroizing<[u8; 32]>,
+}
+
+/// Associated data binding a ciphertext to its row, so a ciphertext copied into
+/// another project's (or placeholder's) row fails authentication.
+fn row_aad(project_id: &str, placeholder: &str) -> Vec<u8> {
+    let mut aad = Vec::with_capacity(project_id.len() + placeholder.len() + 8);
+    aad.extend_from_slice(b"dpg/v1\0");
+    aad.extend_from_slice(project_id.as_bytes());
+    aad.push(0);
+    aad.extend_from_slice(placeholder.as_bytes());
+    aad
 }
 
 impl MappingStore {
@@ -75,6 +97,7 @@ impl MappingStore {
         let master = keys.master_key()?;
         let k_enc = Zeroizing::new(derive_key(&master, b"dpg/encryption/v1"));
         let k_index = Zeroizing::new(derive_key(&master, b"dpg/index/v1"));
+        let k_ignore = Zeroizing::new(derive_key(&master, b"dpg/ignore/v1"));
 
         // Configure SQLite performance and concurrency
         conn.execute_batch(
@@ -109,6 +132,10 @@ impl MappingStore {
             );
             CREATE TABLE IF NOT EXISTS schema_version (
                 version INTEGER NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS key_check (
+                id  INTEGER PRIMARY KEY CHECK (id = 1),
+                mac BLOB NOT NULL
             );",
         )
         .map_err(|_| DpgError::MappingStore {
@@ -116,18 +143,74 @@ impl MappingStore {
             detail: SafeDetail::from_static("Failed to create database schema"),
         })?;
 
+        // PM-05: verify the key before any use. A wrong key fails `open`, and the
+        // database is left untouched.
+        let expected = derive_key(&master, b"dpg/key-check/v1");
+        let stored: Option<Vec<u8>> = conn
+            .query_row("SELECT mac FROM key_check WHERE id = 1", [], |r| r.get(0))
+            .map(Some)
+            .or_else(|e| match e {
+                rusqlite::Error::QueryReturnedNoRows => Ok(None),
+                _ => Err(e),
+            })
+            .map_err(|_| DpgError::MappingStore {
+                code: ErrorCode::M001,
+                detail: SafeDetail::from_static("Failed to read key check"),
+            })?;
+        match stored {
+            Some(mac) => {
+                use subtle_eq::ct_eq;
+                if !ct_eq(&mac, &expected) {
+                    return Err(DpgError::MappingStore {
+                        code: ErrorCode::M001,
+                        detail: SafeDetail::from_static("Mapping store key mismatch"),
+                    });
+                }
+            }
+            None => {
+                let rows: i64 = conn
+                    .query_row("SELECT COUNT(*) FROM mapping", [], |r| r.get(0))
+                    .unwrap_or(1);
+                if rows > 0 {
+                    // Legacy store without a verifier: cannot prove the key matches.
+                    return Err(DpgError::MappingStore {
+                        code: ErrorCode::M001,
+                        detail: SafeDetail::from_static("Mapping store has no key check"),
+                    });
+                }
+                conn.execute(
+                    "INSERT INTO key_check (id, mac) VALUES (1, ?1)",
+                    params![&expected[..]],
+                )
+                .map_err(|_| DpgError::MappingStore {
+                    code: ErrorCode::M001,
+                    detail: SafeDetail::from_static("Failed to write key check"),
+                })?;
+            }
+        }
+
         Ok(Self {
             conn: Mutex::new(conn),
             k_enc,
             k_index,
+            k_ignore,
         })
     }
 
-    fn compute_value_mac(&self, value: &str) -> [u8; 32] {
+    /// Key for ignore-list fingerprints (`HMAC(k_ignore, rule || value)`), derived from
+    /// the master key so fingerprints cannot be brute-forced without it.
+    pub fn ignore_fingerprint_key(&self) -> [u8; 32] {
+        *self.k_ignore
+    }
+
+    fn compute_value_mac(&self, project_id: &str, value: &str) -> [u8; 32] {
         let mut mac = <HmacSha256 as Mac>::new_from_slice(&self.k_index[..]).unwrap_or_else(|_| {
             let fallback = [0u8; 32];
             <HmacSha256 as Mac>::new_from_slice(&fallback).unwrap_or_else(|_| unreachable!())
         });
+        // Scope the index MAC to the project so equal values are unlinkable across projects.
+        mac.update(project_id.as_bytes());
+        mac.update(&[0]);
         mac.update(value.as_bytes());
         let res = mac.finalize().into_bytes();
         let mut out = [0u8; 32];
@@ -135,7 +218,7 @@ impl MappingStore {
         out
     }
 
-    fn encrypt_value(&self, value: &str) -> Result<Vec<u8>, DpgError> {
+    fn encrypt_value(&self, value: &str, aad: &[u8]) -> Result<Vec<u8>, DpgError> {
         let cipher =
             Aes256Gcm::new_from_slice(&self.k_enc[..]).map_err(|_| DpgError::Internal {
                 code: ErrorCode::Z001,
@@ -145,12 +228,17 @@ impl MappingStore {
         rand::thread_rng().fill_bytes(&mut nonce_bytes);
         let nonce = Nonce::from_slice(&nonce_bytes);
 
-        let ciphertext =
-            cipher
-                .encrypt(nonce, value.as_bytes())
-                .map_err(|_| DpgError::Internal {
-                    code: ErrorCode::Z001,
-                })?;
+        let ciphertext = cipher
+            .encrypt(
+                nonce,
+                aes_gcm::aead::Payload {
+                    msg: value.as_bytes(),
+                    aad,
+                },
+            )
+            .map_err(|_| DpgError::Internal {
+                code: ErrorCode::Z001,
+            })?;
 
         let mut payload = Vec::with_capacity(12 + ciphertext.len());
         payload.extend_from_slice(&nonce_bytes);
@@ -158,10 +246,10 @@ impl MappingStore {
         Ok(payload)
     }
 
-    fn decrypt_value(&self, payload: &[u8]) -> Result<String, DpgError> {
+    fn decrypt_value(&self, payload: &[u8], aad: &[u8]) -> Result<String, DpgError> {
         if payload.len() < 12 {
             return Err(DpgError::MappingStore {
-                code: ErrorCode::M002,
+                code: ErrorCode::M001,
                 detail: SafeDetail::from_static("Payload too short for AES-GCM"),
             });
         }
@@ -175,14 +263,20 @@ impl MappingStore {
         let ciphertext = &payload[12..];
 
         let plaintext = cipher
-            .decrypt(nonce, ciphertext)
+            .decrypt(
+                nonce,
+                aes_gcm::aead::Payload {
+                    msg: ciphertext,
+                    aad,
+                },
+            )
             .map_err(|_| DpgError::MappingStore {
-                code: ErrorCode::M002,
+                code: ErrorCode::M001,
                 detail: SafeDetail::from_static("Failed to decrypt secret with master key"),
             })?;
 
         String::from_utf8(plaintext).map_err(|_| DpgError::MappingStore {
-            code: ErrorCode::M002,
+            code: ErrorCode::M001,
             detail: SafeDetail::from_static("Decrypted secret is not valid UTF-8"),
         })
     }
@@ -194,7 +288,7 @@ impl MappingStore {
         value: &str,
         cat: PlaceholderCat,
     ) -> Result<String, DpgError> {
-        let value_mac = self.compute_value_mac(value);
+        let value_mac = self.compute_value_mac(project_id.as_str(), value);
         let now = current_timestamp();
         let proj_str = project_id.as_str();
 
@@ -239,11 +333,11 @@ impl MappingStore {
         drop(rows);
         drop(select_stmt);
 
-        // 2. Generate and encrypt new mapping
-        let encrypted_payload = self.encrypt_value(value)?;
-
+        // 2. Generate and encrypt new mapping (ciphertext is bound to project + placeholder)
         for _ in 0..10 {
             let candidate_placeholder = generate_csprng(cat);
+            let encrypted_payload =
+                self.encrypt_value(value, &row_aad(proj_str, &candidate_placeholder))?;
 
             let res = conn.execute(
                 "INSERT INTO mapping (project_id, placeholder, value, value_mac, category, created_at, last_used_at)
@@ -332,7 +426,8 @@ impl MappingStore {
                 detail: SafeDetail::from_static("Failed to read value blob"),
             })?;
 
-            let decrypted = self.decrypt_value(&payload)?;
+            let decrypted =
+                self.decrypt_value(&payload, &row_aad(project_id.as_str(), placeholder))?;
 
             // Touch last_used_at
             let now = current_timestamp();
@@ -433,6 +528,26 @@ impl MappingStore {
         })?;
 
         Ok(())
+    }
+
+    /// Lists `(rule_id, created_at)` of ignored findings for a project (never values).
+    pub fn list_ignores(&self, project_id: &ProjectId) -> Result<Vec<(String, i64)>, DpgError> {
+        let err = || DpgError::MappingStore {
+            code: ErrorCode::M001,
+            detail: SafeDetail::from_static("Failed to list ignore entries"),
+        };
+        let conn = self.conn.lock().map_err(|_| DpgError::Internal {
+            code: ErrorCode::Z001,
+        })?;
+        let mut stmt = conn
+            .prepare(
+                "SELECT rule_id, created_at FROM ignore_fp WHERE project_id = ?1 ORDER BY created_at",
+            )
+            .map_err(|_| err())?;
+        let rows = stmt
+            .query_map(params![project_id.as_str()], |r| Ok((r.get(0)?, r.get(1)?)))
+            .map_err(|_| err())?;
+        rows.collect::<Result<Vec<_>, _>>().map_err(|_| err())
     }
 
     /// Removes a finding fingerprint from the ignore list.
@@ -562,14 +677,23 @@ mod tests {
             .expect("insert store 1");
         drop(store1);
 
-        // Open with completely different key
-        let key2 = FixedKeyProvider::new([20u8; 32]);
-        let store2 = MappingStore::open(&db_path, &key2).expect("open store 2");
+        let before = std::fs::read(&db_path).expect("read db");
 
-        let err = store2
-            .lookup(&project, &ph)
-            .expect_err("PM-05: Wrong key must fail decryption");
-        assert_eq!(err.code(), ErrorCode::M002);
+        // Open with completely different key: open itself must fail, DB untouched.
+        let key2 = FixedKeyProvider::new([20u8; 32]);
+        let err = match MappingStore::open(&db_path, &key2) {
+            Ok(_) => panic!("PM-05: open with wrong key must fail"),
+            Err(e) => e,
+        };
+        assert_eq!(err.code(), ErrorCode::M001);
+        assert_eq!(std::fs::read(&db_path).expect("read db"), before);
+
+        // Right key still works.
+        let store1 = MappingStore::open(&db_path, &key1).expect("reopen");
+        assert_eq!(
+            store1.lookup(&project, &ph).expect("lookup").as_deref(),
+            Some("secret-data-123")
+        );
     }
 
     #[test]
@@ -666,5 +790,26 @@ mod tests {
         for h in handles {
             h.join().expect("thread join");
         }
+    }
+
+    #[test]
+    fn test_ciphertext_moved_to_other_project_fails_auth() {
+        let keys = crate::key::FixedKeyProvider::new([21u8; 32]);
+        let store = MappingStore::in_memory(&keys).expect("store");
+        let a = ProjectId::new("proj-a".to_string());
+        let b = ProjectId::new("proj-b".to_string());
+        let ph = store
+            .get_or_create(&a, "moved_secret_value_1234", PlaceholderCat::Secret)
+            .expect("insert");
+        store
+            .conn
+            .lock()
+            .expect("lock")
+            .execute("UPDATE mapping SET project_id = 'proj-b'", [])
+            .expect("tamper");
+        let err = store
+            .lookup(&b, &ph)
+            .expect_err("AAD must reject moved row");
+        assert_eq!(err.code(), ErrorCode::M001);
     }
 }

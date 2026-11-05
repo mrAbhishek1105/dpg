@@ -6,21 +6,79 @@ pub mod protocol;
 pub mod user_prompt_submit;
 
 use std::io::{Read, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 use dpg_core::context::{ProjectContext, ProjectId, RequestContext, SessionId};
 use dpg_core::engine::Engine;
+use dpg_core::error::DpgError;
 use dpg_core::types::Route;
+use serde_json::Value;
 
-use self::post_tool_use::handle_post_tool_use;
+use self::post_tool_use::{handle_post_tool_use, withhold_string_leaves};
 use self::pre_tool_use::handle_pre_tool_use;
-use self::protocol::HookInput;
+use self::protocol::{
+    HookInput, PostToolUseOutput, PostToolUseSpecific, PreToolUseOutput, PreToolUseSpecific,
+    UserPromptSubmitOutput,
+};
 use self::user_prompt_submit::handle_user_prompt_submit;
+use crate::runtime::{Runtime, RuntimeOptions};
 
-/// Dispatches Claude Code hook JSON execution over reader/writer streams.
-/// Returns the process exit code (0 for success / permitted, 2 for blocked / fatal error).
-pub fn run<R: Read, W: Write>(engine: &Engine, mut stdin: R, mut stdout: W) -> i32 {
+/// What a hook invocation runs against: an engine, the resolved project, and a deadline.
+pub struct HookTarget<'a> {
+    /// Configured engine.
+    pub engine: &'a Engine,
+    /// Resolved project (canonical root + project id).
+    pub project: ProjectContext,
+    /// Internal deadline for this invocation.
+    pub deadline: Instant,
+}
+
+/// Production entry point for `dpg hook`: resolves the project from the hook's `cwd`,
+/// loads configuration and the mapping store, then dispatches the event.
+pub fn run_hook_process<R: Read, W: Write>(stdin: R, stdout: W) -> i32 {
+    let mut slot: Option<Runtime> = None;
+    let slot_ref = &mut slot;
+    run_with(stdin, stdout, move |cwd| {
+        let rt = slot_ref.insert(Runtime::build(&RuntimeOptions::for_cwd(cwd))?);
+        if let Some(ref e) = rt.store_error {
+            eprintln!(
+                "[DPG] Warning [{}]: mapping store unavailable; masking with ephemeral placeholders, restoration disabled. Run 'dpg doctor'.",
+                e.code()
+            );
+        }
+        Ok(HookTarget {
+            engine: &rt.engine,
+            project: rt.project.clone(),
+            deadline: rt.hook_deadline(),
+        })
+    })
+}
+
+/// Dispatches a hook with a caller-provided engine. The project root is the
+/// canonicalized `cwd` and the project id is fixed; intended for embedding and tests.
+pub fn run<R: Read, W: Write>(engine: &Engine, stdin: R, stdout: W) -> i32 {
+    run_with(stdin, stdout, |cwd| {
+        Ok(HookTarget {
+            engine,
+            project: ProjectContext {
+                root: dunce::canonicalize(cwd).unwrap_or_else(|_| cwd.to_path_buf()),
+                id: ProjectId::new("embedded".to_string()),
+            },
+            deadline: Instant::now() + Duration::from_secs(8),
+        })
+    })
+}
+
+/// Reads the hook JSON from `stdin`, builds the target via `build(cwd)`, dispatches,
+/// and writes the response to `stdout`. Returns the process exit code
+/// (0 = response written, 2 = blocking failure with a stderr notice).
+pub fn run_with<'a, R, W, F>(mut stdin: R, mut stdout: W, build: F) -> i32
+where
+    R: Read,
+    W: Write,
+    F: FnOnce(&Path) -> Result<HookTarget<'a>, DpgError>,
+{
     let mut stdin_bytes = Vec::new();
     if let Err(e) = stdin.read_to_end(&mut stdin_bytes) {
         eprintln!("[DPG] Fatal: Failed to read stdin: {e}");
@@ -30,57 +88,52 @@ pub fn run<R: Read, W: Write>(engine: &Engine, mut stdin: R, mut stdout: W) -> i
     // FC-04: If stdin is not valid JSON or truncated, exit 2, stderr notice, nothing echoed
     let hook_input: HookInput = match serde_json::from_slice(&stdin_bytes) {
         Ok(input) => input,
-        Err(e) => {
-            eprintln!("[DPG] Fatal: Stdin payload is not valid JSON: {e}");
+        Err(_) => {
+            eprintln!("[DPG] Fatal: hook stdin is not valid JSON (DPG-I001)");
             return 2;
         }
     };
 
     let event_name = hook_input
         .hook_event_name
-        .as_deref()
-        .unwrap_or("UnknownEvent");
+        .clone()
+        .unwrap_or_else(|| "UnknownEvent".to_string());
 
     let cwd = hook_input
         .cwd
+        .clone()
         .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
 
-    // Derive or canonicalize project root from cwd
-    let project_root = dunce::canonicalize(&cwd).unwrap_or(cwd);
-    let project_id_str = format!("{:x}", md5_or_simple_hash(&project_root));
+    let target = match build(&cwd) {
+        Ok(t) => t,
+        Err(e) => return fail_closed_without_engine(&event_name, hook_input, &e, &mut stdout),
+    };
 
-    let session = hook_input
-        .session_id
-        .unwrap_or_else(|| "session-hook-default".to_string());
-
-    let route = match event_name {
+    let route = match event_name.as_str() {
         "PostToolUse" => Route::HookPostToolUse,
         "PreToolUse" => Route::HookPreToolUse,
         "UserPromptSubmit" => Route::HookUserPrompt,
         _ => Route::HookPostToolUse,
     };
 
-    // Internal deadline (default 8s within a 10s Claude Code hook timeout)
-    let deadline = Instant::now() + Duration::from_secs(8);
-
     let ctx = RequestContext {
-        project: ProjectContext {
-            root: project_root,
-            id: ProjectId::new(project_id_str),
-        },
-        session: SessionId::new(session),
+        project: target.project,
+        session: SessionId::new(
+            hook_input
+                .session_id
+                .clone()
+                .unwrap_or_else(|| "session-hook-default".to_string()),
+        ),
         route,
-        deadline,
+        deadline: target.deadline,
     };
+    let engine = target.engine;
 
-    match event_name {
+    match event_name.as_str() {
         "PostToolUse" => {
             let output = handle_post_tool_use(engine, &ctx, hook_input.tool_response);
             // FC-12: Write output; return exit 2 if serialization fails
-            if serde_json::to_writer(&mut stdout, &output).is_err() {
-                return 2;
-            }
-            0
+            write_json(&mut stdout, &output)
         }
         "PreToolUse" => {
             let output = handle_pre_tool_use(
@@ -89,36 +142,116 @@ pub fn run<R: Read, W: Write>(engine: &Engine, mut stdin: R, mut stdout: W) -> i
                 hook_input.tool_name.as_deref(),
                 hook_input.tool_input,
             );
-            if serde_json::to_writer(&mut stdout, &output).is_err() {
-                return 2;
-            }
-            0
+            write_json(&mut stdout, &output)
         }
         "UserPromptSubmit" => {
             let (output, exit_code) =
                 handle_user_prompt_submit(engine, &ctx, hook_input.prompt.as_deref());
-            if serde_json::to_writer(&mut stdout, &output).is_err() {
+            if exit_code == 2 {
+                // Exit 2 makes Claude Code ignore stdout and show stderr instead.
+                if let Some(ref reason) = output.reason {
+                    eprintln!("{reason}");
+                }
                 return 2;
             }
-            exit_code
+            write_json(&mut stdout, &output)
         }
         _ => {
             // Unknown event name: pass-through allowed but logged
             tracing::info!(event = %event_name, "Unknown hook event name, passing through");
-            let empty = serde_json::json!({});
-            if serde_json::to_writer(&mut stdout, &empty).is_err() {
-                return 2;
-            }
-            0
+            write_json(&mut stdout, &serde_json::json!({}))
         }
     }
 }
 
-fn md5_or_simple_hash(path: &std::path::Path) -> u64 {
-    use std::hash::{Hash, Hasher};
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    path.hash(&mut hasher);
-    hasher.finish()
+fn write_json<W: Write, T: serde::Serialize>(stdout: &mut W, value: &T) -> i32 {
+    if serde_json::to_writer(&mut *stdout, value).is_err() || stdout.flush().is_err() {
+        eprintln!("[DPG] Fatal: could not write hook response (DPG-Z001)");
+        return 2;
+    }
+    0
+}
+
+/// Fail-closed responses when the runtime itself cannot be built (bad config,
+/// missing key, detector init failure). Nothing can be inspected, so:
+/// * PostToolUse: every string leaf of the tool output is withheld;
+/// * PreToolUse: allowed only if the input carries no placeholders (nothing to
+///   restore, nothing to guard); otherwise denied;
+/// * UserPromptSubmit: blocked;
+/// * unknown events: passed through.
+fn fail_closed_without_engine<W: Write>(
+    event: &str,
+    input: HookInput,
+    err: &DpgError,
+    stdout: &mut W,
+) -> i32 {
+    let code = err.code().to_string();
+    eprintln!("[DPG] Error [{code}]: {err}. Run 'dpg doctor'.");
+    match event {
+        "PostToolUse" => {
+            let updated = input.tool_response.map(|mut v| {
+                withhold_string_leaves(&mut v, &code);
+                v
+            });
+            write_json(
+                stdout,
+                &PostToolUseOutput {
+                    hook_specific_output: PostToolUseSpecific {
+                        hook_event_name: "PostToolUse",
+                        updated_tool_output: updated,
+                    },
+                },
+            )
+        }
+        "PreToolUse" => {
+            let has_placeholders = input
+                .tool_input
+                .as_ref()
+                .map(value_has_placeholder)
+                .unwrap_or(false);
+            let output = if has_placeholders {
+                PreToolUseOutput {
+                    hook_specific_output: PreToolUseSpecific {
+                        hook_event_name: "PreToolUse",
+                        permission_decision: "deny",
+                        permission_decision_reason: Some(format!(
+                            "[DPG] Denied ({code}): DPG is not operational and this call contains placeholders"
+                        )),
+                        updated_input: None,
+                    },
+                }
+            } else {
+                PreToolUseOutput {
+                    hook_specific_output: PreToolUseSpecific {
+                        hook_event_name: "PreToolUse",
+                        permission_decision: "allow",
+                        permission_decision_reason: None,
+                        updated_input: None,
+                    },
+                }
+            };
+            write_json(stdout, &output)
+        }
+        "UserPromptSubmit" => write_json(
+            stdout,
+            &UserPromptSubmitOutput {
+                decision: Some("block"),
+                reason: Some(format!(
+                    "[DPG] Prompt inspection unavailable ({code}). Run 'dpg doctor'."
+                )),
+            },
+        ),
+        _ => write_json(stdout, &serde_json::json!({})),
+    }
+}
+
+fn value_has_placeholder(v: &Value) -> bool {
+    match v {
+        Value::String(s) => !dpg_restore::scan_tokens(s).is_empty(),
+        Value::Array(a) => a.iter().any(value_has_placeholder),
+        Value::Object(m) => m.values().any(value_has_placeholder),
+        _ => false,
+    }
 }
 
 #[cfg(test)]
@@ -271,7 +404,7 @@ mod tests {
     fn test_pre_tool_use_restores_write_and_edit() {
         let (engine, store) = setup_test_engine();
         let temp = tempfile::tempdir().unwrap();
-        let project_id = ProjectId::new(format!("{:x}", md5_or_simple_hash(temp.path())));
+        let project_id = ProjectId::new("embedded".to_string());
 
         let secret = "super_classified_secret_key_999";
         let ph = store
@@ -353,7 +486,10 @@ mod tests {
         let mut stdout = Vec::new();
 
         let exit_code = run(&engine, &stdin_bytes[..], &mut stdout);
-        assert_eq!(exit_code, 2, "Secret in prompt must cause exit code 2");
+        assert_eq!(
+            exit_code, 0,
+            "Secret in prompt blocks via decision JSON (exit 0)"
+        );
 
         let output: serde_json::Value = serde_json::from_slice(&stdout).unwrap();
         assert_eq!(output["decision"], "block");

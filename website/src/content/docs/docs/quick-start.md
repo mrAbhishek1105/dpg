@@ -3,8 +3,8 @@ title: Quick start
 description: The intended first-run flow for Claude Code users and proxy users.
 ---
 
-:::caution[Planned behaviour]
-These steps describe V1 as designed. They will be tested and updated before the first release.
+:::caution[Pre-release]
+v0.0.1 is unreleased: build from source first. The steps are tested locally but not yet against a live Claude Code session.
 :::
 
 ## Claude Code

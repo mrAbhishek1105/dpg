@@ -3,7 +3,7 @@ title: Development setup
 description: Build DPG and this website locally.
 ---
 
-Prerequisites: Rust stable (rustup), a C compiler (for SQLCipher), Node.js 22+, Git.
+Prerequisites: Rust stable (rustup), a C compiler (for the bundled SQLite), Node.js 22+, Git.
 
 ```bash
 cargo build --workspace
@@ -22,4 +22,4 @@ npm run build   # static output in website/dist
 ```
 
 Never use real credentials in tests; the repository will include a synthetic-secret generator.
-On Windows, install the Visual Studio Build Tools and make Perl available on `PATH` (needed to compile SQLCipher's bundled OpenSSL).
+On Windows, install the Visual Studio Build Tools (C compiler for the bundled SQLite).

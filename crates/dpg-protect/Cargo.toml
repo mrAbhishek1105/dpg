@@ -22,6 +22,12 @@ sha2 = { workspace = true }
 aes-gcm = { workspace = true }
 tracing = { workspace = true }
 
+[target.'cfg(windows)'.dependencies]
+keyring = { workspace = true, features = ["windows-native"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+keyring = { workspace = true, features = ["apple-native"] }
+
 [dev-dependencies]
 tempfile = { workspace = true }
 dpg-detect = { workspace = true }

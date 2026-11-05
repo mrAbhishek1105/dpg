@@ -3,9 +3,10 @@ title: Introduction
 description: What DPG is, who V1 is for, and how to read these docs.
 ---
 
-:::caution[Planned behaviour]
-DPG is pre-alpha. Pages in this documentation describe the **V1 specification**. Commands and
-configuration shown here are not yet runnable. Check [Project status](/status/) first.
+:::note[Pre-release]
+DPG v1 is implemented and tested but not yet released: build it from source. It has not yet been
+validated against a live Claude Code session. Check [Project status](/status/) for what is tested
+and what is unverified.
 :::
 
 DPG (Data Protection Gateway) is a local-first protection layer between AI coding agents and AI

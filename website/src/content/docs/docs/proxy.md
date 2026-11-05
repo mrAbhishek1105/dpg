@@ -3,8 +3,8 @@ title: Local proxy
 description: Using DPG with tools that accept a custom Anthropic or OpenAI base URL.
 ---
 
-:::caution[Planned behaviour]
-The proxy is specified but not implemented.
+:::caution[Pre-release]
+Implemented and tested against a mock upstream; not yet validated with live provider traffic. The URL token is derived from your master key, so it stays valid across restarts; rotate it with `dpg forget --all --reset`.
 :::
 
 ## Setup

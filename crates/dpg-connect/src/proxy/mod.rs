@@ -12,7 +12,7 @@ pub use guard::{match_proxy_route, validate_request_headers, validate_token, Pro
 pub use mask::mask_request_body;
 pub use restore::restore_response_body;
 pub use server::{
-    build_proxy_router, generate_proxy_token, validate_bind_address, ProxyConfig, ProxyState,
-    MAX_BODY_LIMIT_BYTES,
+    build_proxy_router, build_upstream_client, generate_proxy_token, validate_bind_address,
+    ProxyConfig, ProxyState, MAX_BODY_LIMIT_BYTES,
 };
-pub use sse::{SseEvent, SseParser, StreamingRestorer};
+pub use sse::{SseEvent, SseParser, SseStreamRestorer, StreamingRestorer};

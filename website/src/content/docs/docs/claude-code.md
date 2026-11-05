@@ -3,7 +3,7 @@ title: Claude Code integration
 description: What DPG's Claude Code hooks do, what they cannot do, and the documented gaps.
 ---
 
-:::caution[Planned behaviour]
+:::caution[Pre-release]
 Hook behaviour depends on Claude Code's hook API, which changes between versions. DPG will publish
 a tested version range with each release.
 :::

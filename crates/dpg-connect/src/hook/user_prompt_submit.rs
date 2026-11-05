@@ -7,7 +7,8 @@ use dpg_core::types::ProtectOutcome;
 use crate::hook::protocol::UserPromptSubmitOutput;
 
 /// Handles a UserPromptSubmit event, detecting secrets and blocking if found.
-/// Returns (UserPromptSubmitOutput, exit_code).
+/// Returns (UserPromptSubmitOutput, exit_code). Detected secrets block via the
+/// `{"decision":"block"}` JSON (exit 0); inspection faults exit 2 (stderr reason).
 pub fn handle_user_prompt_submit(
     engine: &Engine,
     ctx: &RequestContext,
@@ -38,7 +39,7 @@ pub fn handle_user_prompt_submit(
                         "[DPG] Confidential secret detected in prompt: {reason}. Please use the local proxy or remove the secret before proceeding."
                     )),
                 },
-                2,
+                0,
             )
         }
         Ok(Ok(ProtectOutcome::Allowed { report, .. })) => {
@@ -52,7 +53,7 @@ pub fn handle_user_prompt_submit(
                                 .to_string(),
                         ),
                     },
-                    2,
+                    0,
                 )
             } else {
                 // Allowed, no secrets found

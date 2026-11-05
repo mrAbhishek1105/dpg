@@ -19,6 +19,7 @@ use crate::scan::scan_tokens;
 /// Restores placeholder tokens to real secret values in allowed file write operations.
 pub struct DpgRestorer {
     store: Option<Arc<MappingStore>>,
+    other_tool_action: ActionConfig,
 }
 
 /// Type alias for `DpgRestorer`.
@@ -27,12 +28,23 @@ pub type Restore = DpgRestorer;
 impl DpgRestorer {
     /// Constructs a restorer with an optional mapping store.
     pub fn new(store: Option<Arc<MappingStore>>) -> Self {
-        Self { store }
+        Self {
+            store,
+            other_tool_action: ActionConfig::Warn,
+        }
+    }
+
+    /// Sets the action for placeholders seen in tools other than Write/Edit
+    /// (`policy.placeholder_in_other_tool`). Placeholders are never restored there;
+    /// `Block` denies the tool call, anything else allows it unrestored.
+    pub fn with_other_tool_action(mut self, action: ActionConfig) -> Self {
+        self.other_tool_action = action;
+        self
     }
 
     /// Constructs a restorer backed by a persistent mapping store.
     pub fn with_store(store: Arc<MappingStore>) -> Self {
-        Self { store: Some(store) }
+        Self::new(Some(store))
     }
 
     /// Performs a detective post-write path re-check (task F-04).
@@ -80,9 +92,7 @@ impl Restorer for DpgRestorer {
 
         // 3. If tool is not Write or Edit, never restore
         if !is_file_write_tool(&req.tool_name) {
-            let other_tool_action = ActionConfig::Warn;
-
-            match other_tool_action {
+            match self.other_tool_action {
                 ActionConfig::Block => {
                     report.blocked.push(BlockItem {
                         rule_id: RuleId::from_static("dpg.restore.disallowed-tool"),
@@ -166,8 +176,7 @@ impl Restorer for DpgRestorer {
             // Edit: restore in "old_string" and "new_string"
             let should_restore = (req.tool_name.eq_ignore_ascii_case("Write") && key == "content")
                 || (req.tool_name.eq_ignore_ascii_case("Edit")
-                    && (key == "old_string" || key == "new_string"))
-                || key == "content";
+                    && (key == "old_string" || key == "new_string"));
 
             if !should_restore {
                 updated_fields.push((key, val));
@@ -196,8 +205,14 @@ impl Restorer for DpgRestorer {
                             line_number: 1,
                         });
                     }
-                    Err(e) => {
-                        tracing::warn!(code = %e.code(), "Store lookup failed during restore");
+                    Err(_) => {
+                        // Fail closed: a partially restored write is worse than a denied one.
+                        return Err(DpgError::Restoration {
+                            code: ErrorCode::R001,
+                            detail: SafeDetail::from_static(
+                                "Mapping store lookup failed while restoring placeholders",
+                            ),
+                        });
                     }
                 }
             }
@@ -506,5 +521,66 @@ mod tests {
             recheck_outside.is_err(),
             "F-04: Outside write recheck must fail"
         );
+    }
+
+    #[test]
+    fn test_sr_rg_10_other_tool_block_policy_denies() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let keys = FixedKeyProvider::new([12u8; 32]);
+        let store = Arc::new(MappingStore::in_memory(&keys).expect("store init"));
+        let restorer =
+            DpgRestorer::with_store(store.clone()).with_other_tool_action(ActionConfig::Block);
+        let ctx = make_test_context(temp.path().to_path_buf(), "proj-block");
+        let ph = store
+            .get_or_create(
+                &ctx.project.id,
+                "tok_secret_value_123456",
+                PlaceholderCat::Secret,
+            )
+            .expect("insert");
+        let req = RestoreRequest {
+            tool_name: "Bash".to_string(),
+            target_path: None,
+            fields: vec![("command".to_string(), format!("curl -H 'k: {ph}' x"))],
+        };
+        let outcome = restorer.restore(&ctx, req).expect("restore");
+        assert!(!outcome.allowed, "Block policy must deny the Bash call");
+        assert!(outcome.updated_fields[0].1.contains(&ph), "never restored");
+    }
+
+    #[test]
+    fn test_sr_rg_11_write_restores_only_content_field() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let keys = FixedKeyProvider::new([13u8; 32]);
+        let store = Arc::new(MappingStore::in_memory(&keys).expect("store init"));
+        let restorer = DpgRestorer::with_store(store.clone());
+        let ctx = make_test_context(temp.path().to_path_buf(), "proj-fields");
+        let ph = store
+            .get_or_create(
+                &ctx.project.id,
+                "tok_secret_value_654321",
+                PlaceholderCat::Secret,
+            )
+            .expect("insert");
+        // An Edit call must not restore a field named "content".
+        let req = RestoreRequest {
+            tool_name: "Edit".to_string(),
+            target_path: Some(temp.path().join("a.txt")),
+            fields: vec![
+                ("content".to_string(), ph.clone()),
+                ("new_string".to_string(), ph.clone()),
+            ],
+        };
+        let outcome = restorer.restore(&ctx, req).expect("restore");
+        let get = |k: &str| {
+            outcome
+                .updated_fields
+                .iter()
+                .find(|(n, _)| n == k)
+                .map(|(_, v)| v.clone())
+                .expect("field")
+        };
+        assert_eq!(get("content"), ph, "Edit must not restore `content`");
+        assert_eq!(get("new_string"), "tok_secret_value_654321");
     }
 }

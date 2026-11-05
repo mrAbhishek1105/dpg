@@ -7,10 +7,10 @@ description: How DPG will be installed, and how to build it from source once cod
 There is no published DPG binary and no Rust code yet. The commands below will be enabled once tested.
 :::
 
-## Build from source (once the Rust workspace lands)
+## Build from source
 
-Requirements: Rust stable via [rustup](https://rustup.rs), a C compiler (SQLCipher is compiled from
-source), Git. On Windows, install the Visual Studio Build Tools and make Perl available on `PATH`.
+Requirements: Rust stable via [rustup](https://rustup.rs), a C compiler (SQLite is compiled from
+source), Git. On Windows, install the Visual Studio Build Tools.
 
 ```bash
 git clone https://github.com/mrAbhishek1105/dpg
