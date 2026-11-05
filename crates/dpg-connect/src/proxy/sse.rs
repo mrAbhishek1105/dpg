@@ -215,7 +215,7 @@ struct HeldText {
 /// Owned SSE response transformer for the proxy: parses events on byte boundaries
 /// (never splitting UTF-8), restores placeholders in **text** deltas only (PX-10:
 /// tool-call arguments such as `input_json_delta` / `tool_calls` are never touched),
-/// and holds back at most [`MAX_PLACEHOLDER_LEN`] bytes per text stream (PX-09).
+/// and holds back at most 19 bytes (the maximum placeholder length) per text stream (PX-09).
 /// Held text is flushed as a synthetic text delta before any non-text event (e.g.
 /// `content_block_stop`, `[DONE]`) so no text is lost or reordered across blocks.
 pub struct SseStreamRestorer {
