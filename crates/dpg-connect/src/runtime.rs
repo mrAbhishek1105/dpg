@@ -388,7 +388,8 @@ mod tests {
         std::fs::create_dir_all(proj.join(".git")).unwrap();
         let data = tmp.path().join("data");
         file_backend(&data);
-        let secret = "AKIAZ7Q3XK2LM4NP5RST";
+        let secret = dpg_testgen::gen_aws_access_key(&mut dpg_testgen::create_rng(31337));
+        let secret = secret.as_str();
         let masked = {
             let rt = Runtime::build(&opts(&proj, &data)).unwrap();
             let ctx = rt.context(Route::HookPostToolUse, "s", rt.hook_deadline());

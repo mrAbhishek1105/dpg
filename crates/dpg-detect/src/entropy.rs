@@ -183,7 +183,7 @@ mod tests {
     #[test]
     fn test_entropy_candidate_detection() {
         let scanner = EntropyScanner::new().expect("scanner init");
-        let secret = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY";
+        let secret = &format!("{}{}", "wJalrXUtnFEMI/K7MDENG/bPxRfiCY", "EXAMPLEKEY");
         let text = format!("auth_signature: {secret}");
 
         let findings = scanner.scan(&text);

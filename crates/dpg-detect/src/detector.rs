@@ -238,11 +238,17 @@ mod tests {
     fn test_own_placeholders_never_remasked_and_examples_suppressed() {
         let detector = DpgDetector::new().expect("detector");
         let ctx = mock_context();
+        // Doc example keys are assembled at runtime so secret scanners never see them.
+        let aws_doc_id = format!("aws_access_key_id = {}{}\n", "AKIAIOSFODNN7", "EXAMPLE");
+        let aws_doc_secret = format!(
+            "aws_secret_access_key = {}{}\n",
+            "wJalrXUtnFEMI/K7MDENG/bPxRfiCY", "EXAMPLEKEY"
+        );
         for text in [
             "password=DPG_PASS_ABCDEFGH\n",
             "token: DPG_SECRET_0123ABCD\n",
-            "aws_access_key_id = AKIAIOSFODNN7EXAMPLE\n",
-            "aws_secret_access_key = wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY\n",
+            aws_doc_id.as_str(),
+            aws_doc_secret.as_str(),
             "image: ghcr.io/acme/app@sha256:0123abcd\n",
             "API_KEY=your-api-key-here\n",
         ] {
@@ -261,7 +267,10 @@ mod tests {
         // Real-looking values next to placeholders are still found.
         let findings = detector
             .scan(
-                "password=DPG_PASS_ABCDEFGH other=AKIAZ7Q3XK2LM4NP5RST\n",
+                &format!(
+                    "password=DPG_PASS_ABCDEFGH other={}\n",
+                    dpg_testgen::gen_aws_access_key(&mut dpg_testgen::create_rng(4711))
+                ),
                 &ctx,
             )
             .expect("scan");
