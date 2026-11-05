@@ -80,9 +80,9 @@ mod tests {
 
     #[test]
     fn test_sr_dt_04_known_secret_beats_key_value_overlap() {
-        let _text = "AWS_SECRET_KEY=AKIA1234567890ABCDEF";
+        let _text = format!("AWS_SECRET_KEY={}{}", "AKIA", "1234567890ABCDEF");
 
-        // Span covering AKIA1234567890ABCDEF (offset 15..35)
+        // Span covering the AWS-style key (offset 15..35)
         let span = Span::new_raw(15, 35);
 
         let kv_finding = Finding {

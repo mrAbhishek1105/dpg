@@ -225,7 +225,7 @@ mod tests {
         let policy = DpgPolicy::default_policy();
         let ctx = mock_context(Route::HookUserPrompt);
 
-        let text = "Here is my AKIA1234567890ABCDEF key";
+        let text = &format!("Here is my {}{} key", "AKIA", "1234567890ABCDEF");
         let span = Span::new_raw(11, 31);
 
         let finding = Finding {
@@ -258,7 +258,8 @@ mod tests {
         );
 
         let ctx = mock_context(Route::HookPostToolUse);
-        let text = "False positive test token: sk_123456789";
+        let fp_val = format!("{}{}", "sk_", "123456789");
+        let text = &format!("False positive test token: {fp_val}");
         let span = Span::new_raw(27, 39);
         let rule = RuleId::from_static("dpg.test-rule");
 
@@ -277,7 +278,7 @@ mod tests {
         assert_eq!(d1[0].action, Action::Mask);
 
         // Add to ignore list
-        let fp = compute_fingerprint(&hmac_key, &rule, "sk_123456789");
+        let fp = compute_fingerprint(&hmac_key, &rule, &fp_val);
         ignore_list.ignore(ctx.project.id.clone(), fp);
 
         // After ignore: Allow

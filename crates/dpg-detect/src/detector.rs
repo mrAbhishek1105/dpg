@@ -212,7 +212,8 @@ mod tests {
         let ctx = mock_context();
 
         // 🔒 (4 bytes) + 機密情報 (12 bytes) + ": " (2 bytes) + AWS key
-        let text = "🔒機密情報: AKIA1234567890ABCDEF and more text";
+        let key = format!("{}{}", "AKIA", "1234567890ABCDEF");
+        let text = &format!("🔒機密情報: {key} and more text");
 
         let findings = detector.scan(text, &ctx).expect("scan succeeds");
         assert!(
@@ -222,7 +223,7 @@ mod tests {
 
         let finding = &findings[0];
         assert_eq!(finding.category, Category::KnownSecret);
-        assert_eq!(finding.span.as_str(text), "AKIA1234567890ABCDEF");
+        assert_eq!(finding.span.as_str(text), key);
 
         // Zero-width joiner test: ZWJ inside non-alphanumeric separator
         let text_zwj = "API_KEY\u{200D}=\"super-secret-token-12345\"";

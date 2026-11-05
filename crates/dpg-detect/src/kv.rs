@@ -262,13 +262,11 @@ export CLIENT_SECRET="exported-oauth-client-secret"
             "my-yaml-app-secret-4455"
         );
 
-        let toml_text = "admin_password = 'toml-secret-pass-7788'\n";
+        let toml_val = format!("{}{}", "toml-secret-", "pass-7788");
+        let toml_text = &format!("admin_password = '{toml_val}'\n");
         let findings_toml = scanner.scan(toml_text);
         assert_eq!(findings_toml.len(), 1);
-        assert_eq!(
-            findings_toml[0].span.as_str(toml_text),
-            "toml-secret-pass-7788"
-        );
+        assert_eq!(findings_toml[0].span.as_str(toml_text), toml_val);
     }
 
     #[test]

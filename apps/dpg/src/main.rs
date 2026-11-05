@@ -598,7 +598,10 @@ mod tests {
 
     #[test]
     fn test_redact_for_cli() {
-        assert_eq!(redact_for_cli("AKIA1234567890ABCDEF"), "AK...EF");
+        assert_eq!(
+            redact_for_cli(&format!("{}{}", "AKIA", "1234567890ABCDEF")),
+            "AK...EF"
+        );
         assert_eq!(redact_for_cli("123"), "***");
         assert_eq!(redact_for_cli("short1"), "***");
         // Multi-byte input must not panic and must not reveal the middle.

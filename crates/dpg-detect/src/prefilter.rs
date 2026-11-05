@@ -151,7 +151,8 @@ mod tests {
         let prefilter = Prefilter::new(&rules).expect("prefilter should build");
 
         // 1. Text with only AWS keyword: candidates should be AWS (0) and generic (2), skipping github (1)
-        let candidates1 = prefilter.candidate_rules("Found AKIA1234567890ABCDEF here");
+        let candidates1 =
+            prefilter.candidate_rules(&format!("Found {}{} here", "AKIA", "1234567890ABCDEF"));
         assert_eq!(candidates1, vec![0, 2]);
 
         // 2. Text with only GitHub keyword: candidates should be GitHub (1) and generic (2), skipping AWS (0)

@@ -145,20 +145,21 @@ mod tests {
             .iter()
             .find(|r| r.id.as_str() == "gitleaks.gitlab-pat")
             .expect("gitlab pat rule found");
-        let text_gitlab = "token: glpat-1234567890abcdefghij";
+        let gl = format!("{}{}", "glpat-", "1234567890abcdefghij");
+        let text_gitlab = &format!("token: {gl}");
         let findings = gitlab_rule.scan(text_gitlab);
         assert_eq!(findings.len(), 1);
-        assert_eq!(
-            findings[0].span.as_str(text_gitlab),
-            "glpat-1234567890abcdefghij"
-        );
+        assert_eq!(findings[0].span.as_str(text_gitlab), gl);
 
         // Verify sendgrid rule
         let sg_rule = gitleaks_rules
             .iter()
             .find(|r| r.id.as_str() == "gitleaks.sendgrid-api-key")
             .expect("sendgrid rule found");
-        let text_sg = "SG.1234567890123456789012.1234567890123456789012345678901234567890123";
+        let text_sg = &format!(
+            "{}.{}.{}",
+            "SG", "1234567890123456789012", "1234567890123456789012345678901234567890123"
+        );
         let findings = sg_rule.scan(text_sg);
         assert_eq!(findings.len(), 1);
     }

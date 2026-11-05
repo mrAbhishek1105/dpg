@@ -1,0 +1,24 @@
+# Historical findings only. Every entry below was reviewed and is a synthetic,
+# non-functional test value (e.g. sequential digits, public header literals) that
+# was committed before test values were generated at runtime. History is not
+# rewritten (no force-push), so these exact commit:file:rule:line fingerprints are
+# acknowledged here. New code must not add entries: build test values at runtime
+# (dpg_testgen or format!-split) instead. See .gitleaks.toml.
+0e6c973f7a3e2adbbcc8b8cd9e7c24e84d299e40:rules/dpg.toml:private-key:15
+0e6c973f7a3e2adbbcc8b8cd9e7c24e84d299e40:tests/fixtures/gen/src/generators.rs:private-key:155
+265e40dee461891519463b547f0bb8edfc61d6cb:crates/dpg-detect/src/kv.rs:generic-api-key:248
+66d7e594ab6d6dc9dafa4f41866b3b206c53e9c4:crates/dpg-protect/src/store.rs:generic-api-key:484
+9017f4bbab2072d8c6975daf3e546cfa40471c55:crates/dpg-policy/src/engine.rs:aws-access-token:228
+9017f4bbab2072d8c6975daf3e546cfa40471c55:crates/dpg-policy/src/engine.rs:generic-api-key:261
+9017f4bbab2072d8c6975daf3e546cfa40471c55:crates/dpg-policy/src/ignore.rs:aws-access-token:98
+9652fbfceec5766ab35488cc5c4fa53ad5a9745b:crates/dpg-connect/src/doctor.rs:aws-access-token:352
+9652fbfceec5766ab35488cc5c4fa53ad5a9745b:crates/dpg-connect/src/runtime.rs:aws-access-token:391
+9652fbfceec5766ab35488cc5c4fa53ad5a9745b:crates/dpg-detect/src/detector.rs:aws-access-token:264
+975fc8c5c88f9ab86dca37237ce4cb86e6b63ec3:crates/dpg-detect/src/ruleset.rs:gitlab-pat:148
+975fc8c5c88f9ab86dca37237ce4cb86e6b63ec3:crates/dpg-detect/src/ruleset.rs:gitlab-pat:153
+975fc8c5c88f9ab86dca37237ce4cb86e6b63ec3:crates/dpg-detect/src/ruleset.rs:sendgrid-api-token:161
+b3c214753f798d81d2415d2337a8734971be9fb9:apps/dpg/src/main.rs:aws-access-token:557
+c5439398d11f600ce092a85a70f16f597bb5f3cb:crates/dpg-detect/src/detector.rs:aws-access-token:158
+c5439398d11f600ce092a85a70f16f597bb5f3cb:crates/dpg-detect/src/detector.rs:aws-access-token:168
+c5439398d11f600ce092a85a70f16f597bb5f3cb:crates/dpg-detect/src/overlap.rs:aws-access-token:83
+c5439398d11f600ce092a85a70f16f597bb5f3cb:crates/dpg-detect/src/overlap.rs:aws-access-token:85

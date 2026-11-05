@@ -118,7 +118,13 @@ impl PathGuard {
 
         // 4. Canonicalize ancestor A (following symlinks). Failure (dangling symlink,
         // permission error) denies: containment cannot be proven.
-        let lexically_inside = is_path_within(&ancestor, &self.root);
+        // "Entered the root before escaping": some prefix of A resolves inside the
+        // canonical root. Compared after canonicalization so non-canonical temp
+        // paths (macOS /var -> /private/var, 8.3 names) classify the same way.
+        let entered_root = ancestor
+            .ancestors()
+            .filter_map(|a| dunce::canonicalize(a).ok())
+            .any(|c| is_path_within(&c, &self.root));
         let Ok(c_a) = dunce::canonicalize(&ancestor) else {
             return Err(DpgError::PathValidation {
                 code: ErrorCode::V003,
@@ -134,7 +140,7 @@ impl PathGuard {
 
         // 6. Check containment in self.root
         if !is_path_within(&target, &self.root) {
-            return Err(if lexically_inside {
+            return Err(if entered_root {
                 DpgError::PathValidation {
                     code: ErrorCode::V003,
                     detail: SafeDetail::from_static("Symlink resolves outside project root"),

@@ -95,7 +95,7 @@ mod tests {
     fn test_fingerprint_derivation_deterministic() {
         let key = b"test-project-key-salt";
         let rule = RuleId::from_static("dpg.aws-access-key-id");
-        let val = "AKIA1234567890ABCDEF";
+        let val = &format!("{}{}", "AKIA", "1234567890ABCDEF");
 
         let fp1 = compute_fingerprint(key, &rule, val);
         let fp2 = compute_fingerprint(key, &rule, val);

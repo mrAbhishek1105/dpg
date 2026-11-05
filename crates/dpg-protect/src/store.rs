@@ -620,7 +620,7 @@ mod tests {
         let keys = FixedKeyProvider::new([1u8; 32]);
         let store = MappingStore::in_memory(&keys).expect("store init");
         let project = ProjectId::new("proj-alpha".to_string());
-        let secret = "sk-live-1234567890abcdef";
+        let secret = &format!("{}{}", "sk-live-", "1234567890abcdef");
 
         let ph1 = store
             .get_or_create(&project, secret, PlaceholderCat::Secret)

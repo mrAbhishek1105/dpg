@@ -341,7 +341,8 @@ fn check_runtime(
     });
 
     // Self-test: a synthetic (non-functional) AWS-style key must be masked.
-    let probe = format!("aws_access_key_id = AKIA{}", "Q7ZT4M2XK9LBN3VD");
+    let probe_key = format!("AKIA{}", "Q7ZT4M2XK9LBN3VD");
+    let probe = format!("aws_access_key_id = {probe_key}");
     let ctx = rt.context(
         Route::Cli,
         "doctor",
@@ -349,7 +350,7 @@ fn check_runtime(
     );
     let ok = match rt.engine.protect(&ctx, &probe) {
         Ok(ProtectOutcome::Allowed { text, report }) => {
-            report.masked > 0 && !text.contains("AKIAQ7ZT4M2XK9LBN3VD")
+            report.masked > 0 && !text.contains(probe_key.as_str())
         }
         Ok(ProtectOutcome::Blocked { .. }) => true,
         Err(_) => false,
