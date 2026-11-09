@@ -22,7 +22,7 @@ jobs:
           - { os: windows-latest, target: x86_64-pc-windows-msvc,   ext: ".exe" }
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.tag }}
       - uses: dtolnay/rust-toolchain@stable
@@ -35,7 +35,7 @@ jobs:
         run: |
           mkdir dist
           cp "target/${{ matrix.target }}/release/dpg${{ matrix.ext }}" "dist/dpg-${{ inputs.tag }}-${{ matrix.target }}${{ matrix.ext }}"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: dpg-${{ matrix.target }}
           path: dist/*
@@ -44,7 +44,7 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: dist
           merge-multiple: true
